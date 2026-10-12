@@ -19,21 +19,26 @@ enum UserStatus {
 }
 
 model User {
-  id               Int         @id @default(autoincrement())
-  email            String      @unique
-  emailVerified    Boolean     @default(false)
-  name             String
-  image            String?     @db.Text
-  status           UserStatus  @default(ACTIVE)
-  twoFactorEnabled Boolean     @default(false)
-  role             Role?       @relation(fields: [roleId], references: [id])
-  roleId           Int?
-  sessions         Session[]
-  accounts         Account[]
-  twoFactors       TwoFactor[]
-  activityLogs     ActivityLog[]
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  emailVerified     Boolean            @default(false)
+  name              String
+  image             String?            @db.Text
+  status            UserStatus         @default(ACTIVE)
+  twoFactorEnabled  Boolean            @default(false)
+  // Public author bio shown on blog posts.
+  bio               String?            @db.Text
+  role              Role?              @relation(fields: [roleId], references: [id])
+  roleId            Int?
+  sessions          Session[]
+  accounts          Account[]
+  twoFactors        TwoFactor[]
+  activityLogs      ActivityLog[]
+  uploadedMedia     Media[]
+  blogPosts         BlogPost[]
+  blogPostRevisions BlogPostRevision[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([roleId])
   @@map("user")
@@ -78,8 +83,8 @@ model ActivityLog {
   id        Int      @id @default(autoincrement())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId    Int?
-  action    String   // e.g. user.suspend
-  entity    String   // e.g. user
+  action    String // e.g. user.suspend
+  entity    String // e.g. user
   entityId  String?
   details   Json?
   ipAddress String?
@@ -163,4 +168,192 @@ model RateLimit {
 
   @@index([windowStart])
   @@map("rate_limit")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: CMS
+// ---------------------------------------------------------------------------
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  PDF
+  DOCUMENT
+}
+
+// PENDING rows are uploads in flight; stale ones are removed by cleanupStaleUploads.
+enum MediaUploadStatus {
+  PENDING
+  READY
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING_REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SeoEntityType {
+  POST
+}
+
+// Root folders (parentId null) are unique by name in code: MySQL allows
+// duplicate NULLs in a unique index.
+model MediaFolder {
+  id        Int           @id @default(autoincrement())
+  name      String
+  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  parentId  Int?
+  children  MediaFolder[] @relation("FolderTree")
+  media     Media[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([parentId, name])
+  @@map("media_folder")
+}
+
+model Media {
+  id                Int               @id @default(autoincrement())
+  // Object key in the R2 bucket, generated on the server.
+  key               String            @unique @db.VarChar(255)
+  originalFilename  String
+  title             String?
+  altText           String?
+  caption           String?           @db.Text
+  description       String?           @db.Text
+  mimeType          String            @db.VarChar(100)
+  kind              MediaKind
+  // BigInt: videos go up to 2 GB, past the 32-bit Int range.
+  size              BigInt
+  width             Int?
+  height            Int?
+  folder            MediaFolder?      @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  folderId          Int?
+  uploadedBy        User?             @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById      Int?
+  uploadStatus      MediaUploadStatus @default(PENDING)
+  // Only set while a multipart upload is in progress.
+  multipartUploadId String?           @db.VarChar(512)
+  posts             BlogPost[]
+  seoImages         SeoData[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([folderId])
+  @@index([uploadedById])
+  @@index([kind])
+  @@index([uploadStatus, createdAt])
+  @@index([createdAt])
+  @@index([originalFilename])
+  @@map("media")
+}
+
+model BlogCategory {
+  id          Int        @id @default(autoincrement())
+  name        String
+  slug        String     @unique
+  description String?    @db.Text
+  posts       BlogPost[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("blog_category")
+}
+
+model BlogTag {
+  id        Int           @id @default(autoincrement())
+  name      String
+  slug      String        @unique
+  posts     BlogPostTag[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("blog_tag")
+}
+
+model BlogPostTag {
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId Int
+  tag    BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId  Int
+
+  @@id([postId, tagId])
+  @@index([tagId])
+  @@map("blog_post_tag")
+}
+
+model BlogPost {
+  id              Int                @id @default(autoincrement())
+  title           String
+  slug            String             @unique
+  body            Json
+  excerpt         String?            @db.Text
+  featuredImage   Media?             @relation(fields: [featuredImageId], references: [id], onDelete: SetNull)
+  featuredImageId Int?
+  author          User?              @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId        Int?
+  category        BlogCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId      Int?
+  tags            BlogPostTag[]
+  featured        Boolean            @default(false)
+  status          ContentStatus      @default(DRAFT)
+  publishAt       DateTime?
+  publishedAt     DateTime?
+  revisions       BlogPostRevision[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([featuredImageId])
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status, publishAt])
+  @@index([publishedAt])
+  @@index([featured])
+  @@map("blog_post")
+}
+
+model BlogPostRevision {
+  id          Int      @id @default(autoincrement())
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      Int
+  number      Int
+  title       String
+  slug        String
+  body        Json
+  excerpt     String?  @db.Text
+  seo         Json?
+  categoryId  Int?
+  // Array of tag ids.
+  tagIds      Json?
+  note        String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById Int?
+  createdAt   DateTime @default(now())
+
+  @@unique([postId, number])
+  @@index([createdById])
+  @@map("blog_post_revision")
+}
+
+// Polymorphic on purpose (no foreign key): courses and categories reuse it later.
+// Delete the row when its entity is deleted.
+model SeoData {
+  id              Int           @id @default(autoincrement())
+  entityType      SeoEntityType
+  entityId        Int
+  title           String?
+  metaDescription String?       @db.Text
+  canonicalUrl    String?       @db.Text
+  noindex         Boolean       @default(false)
+  socialImage     Media?        @relation(fields: [socialImageId], references: [id], onDelete: SetNull)
+  socialImageId   Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([socialImageId])
+  @@map("seo_data")
 }

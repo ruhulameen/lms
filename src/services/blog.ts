@@ -1,204 +1,163 @@
 import "server-only";
+import { cache } from "react";
+import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
+import { formatReadTime, publicDate, resolveExcerpt } from "@/lib/blog-post";
+import { publiclyVisibleWhere } from "@/lib/content-status";
+import { readingTimeMinutes } from "@/lib/rich-text";
+import { publicUrl } from "@/lib/storage";
+import { getSeo } from "@/services/seo";
 
-// Placeholder articles from the design, until the blog module exists.
+// Public blog: only publicly visible posts (published, or scheduled and due).
+// The pages are rendered per request (the site header reads the session), so a
+// publish or a schedule passing shows up without any revalidation.
 
-export type PostBlock =
-  | { type: "paragraph"; text: string }
-  | { type: "heading"; text: string }
-  | { type: "quote"; text: string }
-  | { type: "image"; image: string }
-  | { type: "list"; items: string[] };
+export const BLOG_PAGE_SIZE = 6;
+const FEATURED_LIMIT = 5;
 
-export type Post = {
+export type BlogPost = {
+  id: number;
   slug: string;
   title: string;
-  category: string;
   excerpt: string;
-  image: string;
+  body: unknown;
+  category: { name: string; slug: string } | null;
+  // Null until a featured image is chosen (or while storage is not configured).
+  image: { url: string; alt: string } | null;
   readTime: string;
-  publishedAt: string;
-  author: { name: string; avatar: string };
-  featured?: boolean;
-  content?: PostBlock[];
+  date: Date;
+  featured: boolean;
+  author: { name: string; image: string | null; bio: string | null } | null;
+  tags: { name: string; slug: string }[];
 };
 
-const author = { name: "Sarah Mitchell", avatar: "https://i.pravatar.cc/100?img=5" };
+export const postSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  body: true,
+  excerpt: true,
+  featured: true,
+  publishedAt: true,
+  publishAt: true,
+  createdAt: true,
+  category: { select: { name: true, slug: true } },
+  author: { select: { name: true, image: true, bio: true } },
+  featuredImage: { select: { key: true, altText: true, title: true, kind: true } },
+  tags: { select: { tag: { select: { name: true, slug: true } } } },
+} satisfies Prisma.BlogPostSelect;
 
-const posts: Post[] = [
-  {
-    slug: "in-demand-skills-2025",
-    title: "10 In-Demand Skills Employers Are Looking For in 2025",
-    category: "Career Advice",
-    excerpt:
-      "Discover the skills that top UK employers are actively hiring for — and how you can gain them with accredited online training.",
-    image: "photo-1522202176988-66273c2fd55f",
-    readTime: "8 min read",
-    publishedAt: "12 Sep 2025",
-    author,
-    featured: true,
-    content: [
-      {
-        type: "paragraph",
-        text: "The UK job market is evolving faster than ever. With automation, remote work, and digital transformation reshaping industries, employers are rethinking what they look for in candidates.",
-      },
-      { type: "heading", text: "1. Why Skills Matter More Than Ever" },
-      {
-        type: "paragraph",
-        text: "A decade ago, a degree was often enough to land a solid job. Today, employers care more about what you can actually do.",
-      },
-      {
-        type: "quote",
-        text: "“The half-life of a learned skill is now less than five years.” — UK Commission for Employment and Skills",
-      },
-      { type: "heading", text: "2. Digital & IT Skills" },
-      {
-        type: "paragraph",
-        text: "Digital literacy is no longer optional. The most sought-after digital skills include Microsoft Office proficiency, basic cybersecurity awareness, and data literacy.",
-      },
-      { type: "image", image: "photo-1460925895917-afdab827c52f" },
-      { type: "heading", text: "3. Healthcare & Care Skills" },
-      {
-        type: "paragraph",
-        text: "The UK's health and social care sector is one of the fastest-growing employers, with over 1.5 million vacancies projected by 2030.",
-      },
-      { type: "heading", text: "4. Soft Skills Employers Value" },
-      {
-        type: "list",
-        items: [
-          "Communication",
-          "Teamwork",
-          "Time management",
-          "Problem-solving",
-          "Adaptability",
-        ],
-      },
-      { type: "heading", text: "5. How to Gain These Skills" },
-      {
-        type: "paragraph",
-        text: "Accredited online courses give you a fast, flexible, and affordable way to gain recognised qualifications.",
-      },
-    ],
-  },
-  {
-    slug: "career-in-health-and-social-care",
-    title: "How to Start a Career in Health & Social Care in the UK",
-    category: "Healthcare",
-    excerpt: "From entry-level roles to management paths.",
-    image: "photo-1576091160399-112ba8d25d1d",
-    readTime: "9 min read",
-    publishedAt: "10 Sep 2025",
-    author,
-    featured: true,
-  },
-  {
-    slug: "microsoft-office-skills-for-your-cv",
-    title: "Microsoft Office Skills That Will Boost Your CV Instantly",
-    category: "IT & Computing",
-    excerpt: "Master Excel, Word, and PowerPoint.",
-    image: "photo-1516321318423-f06f85e504b3",
-    readTime: "6 min read",
-    publishedAt: "08 Sep 2025",
-    author,
-    featured: true,
-  },
-  {
-    slug: "why-workplaces-need-health-and-safety-training",
-    title: "Why Every UK Workplace Needs Health & Safety Training",
-    category: "Health & Safety",
-    excerpt: "It's not just a legal requirement.",
-    image: "photo-1504307651254-35680f356dfd",
-    readTime: "7 min read",
-    publishedAt: "06 Sep 2025",
-    author,
-    featured: true,
-  },
-  {
-    slug: "from-team-member-to-manager",
-    title: "Leadership Skills: How to Move from Team Member to Manager",
-    category: "Business",
-    excerpt: "Practical steps to develop leadership capabilities.",
-    image: "photo-1556761175-5973dc0f32e7",
-    readTime: "8 min read",
-    publishedAt: "04 Sep 2025",
-    author,
-    featured: true,
-  },
-  {
-    slug: "write-a-cv-that-gets-noticed",
-    title: "How to Write a CV That Gets You Noticed in 2025",
-    category: "Career Advice",
-    excerpt:
-      "Your CV is your first impression. Learn the latest formatting, keywords, and structure that UK recruiters actually look for.",
-    image: "photo-1586281380349-632531db7ed4",
-    readTime: "7 min read",
-    publishedAt: "12 Sep 2025",
-    author,
-  },
-  {
-    slug: "care-certificate-standards-guide",
-    title: "The Complete Guide to the Care Certificate Standards (1-15)",
-    category: "Healthcare",
-    excerpt:
-      "Everything you need to know about the 15 Care Certificate standards — what each one covers and how they're assessed.",
-    image: "photo-1576091160550-2173dba999ef",
-    readTime: "10 min read",
-    publishedAt: "05 Sep 2025",
-    author,
-  },
-  {
-    slug: "excel-formulas-every-office-worker-should-know",
-    title: "Excel Formulas Every Office Worker Should Know",
-    category: "IT & Computing",
-    excerpt:
-      "From VLOOKUP to IF statements, master the 15 most useful Excel formulas that will save you hours every week.",
-    image: "photo-1460925895917-afdab827c52f",
-    readTime: "8 min read",
-    publishedAt: "28 Aug 2025",
-    author,
-  },
-  {
-    slug: "common-workplace-hazards",
-    title: "5 Common Workplace Hazards (And How to Prevent Them)",
-    category: "Health & Safety",
-    excerpt:
-      "Slips, trips, and manual handling injuries account for the majority of UK workplace accidents.",
-    image: "photo-1504307651254-35680f356dfd",
-    readTime: "6 min read",
-    publishedAt: "20 Aug 2025",
-    author,
-  },
-  {
-    slug: "why-cpd-matters",
-    title: "Why CPD Matters: The Benefits of Continuous Professional Development",
-    category: "Business",
-    excerpt:
-      "CPD isn't just a tick-box exercise. Discover how ongoing learning can accelerate your career and boost your salary.",
-    image: "photo-1552664730-d307ca884978",
-    readTime: "9 min read",
-    publishedAt: "14 Aug 2025",
-    author,
-  },
-  {
-    slug: "how-to-prepare-for-an-interview",
-    title: "How to Prepare for an Interview: 12 Tips That Actually Work",
-    category: "Career Advice",
-    excerpt:
-      "From researching the company to answering tricky questions with confidence — practical advice to help you prepare.",
-    image: "photo-1551836022-d5d88e9218df",
-    readTime: "11 min read",
-    publishedAt: "02 Aug 2025",
-    author,
-  },
-];
+type PostRow = Prisma.BlogPostGetPayload<{ select: typeof postSelect }>;
+
+export function toBlogPost(row: PostRow): BlogPost {
+  const imageUrl = row.featuredImage?.kind === "IMAGE" ? publicUrl(row.featuredImage.key) : null;
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: resolveExcerpt(row.excerpt, row.body),
+    body: row.body,
+    category: row.category,
+    image: imageUrl ? { url: imageUrl, alt: row.featuredImage?.altText || row.featuredImage?.title || "" } : null,
+    readTime: formatReadTime(readingTimeMinutes(row.body)),
+    date: publicDate(row),
+    featured: row.featured,
+    author: row.author,
+    tags: row.tags.map((t) => t.tag).sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+// Newest first by the date shown on the site. The date is publishedAt or, for
+// a scheduled post that has come due, publishAt, which a single SQL ORDER BY
+// cannot express, so the ids are ordered here and only one page is loaded in full.
+async function visiblePage(extra: Prisma.BlogPostWhereInput, page: number, pageSize: number) {
+  const where: Prisma.BlogPostWhereInput = { AND: [publiclyVisibleWhere(new Date()), extra] };
+  const ids = await db.blogPost.findMany({
+    where,
+    select: { id: true, publishedAt: true, publishAt: true, createdAt: true },
+  });
+  const ordered = ids
+    .map((row) => ({ id: row.id, time: publicDate(row).getTime() }))
+    .sort((a, b) => b.time - a.time || b.id - a.id);
+  const pageIds = ordered.slice((page - 1) * pageSize, page * pageSize).map((row) => row.id);
+  const rows = await db.blogPost.findMany({ where: { id: { in: pageIds } }, select: postSelect });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const posts = pageIds.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [toBlogPost(row)] : [];
+  });
+  return { posts, total: ordered.length };
+}
 
 export async function getFeaturedPosts() {
-  return posts.filter((post) => post.featured);
+  return (await visiblePage({ featured: true }, 1, FEATURED_LIMIT)).posts;
 }
 
-export async function getLatestPosts() {
-  return posts.filter((post) => !post.featured);
+export type LatestFilters = { page?: number; category?: string; tag?: string };
+
+// The list below the slider. Without a filter the featured posts are left out
+// (they are in the slider); with a category or tag filter every match is listed.
+export async function getLatestPosts(filters: LatestFilters = {}) {
+  const page = Math.max(1, filters.page ?? 1);
+  const filtered = Boolean(filters.category || filters.tag);
+  const extra: Prisma.BlogPostWhereInput = {
+    featured: filtered ? undefined : false,
+    category: filters.category ? { slug: filters.category } : undefined,
+    tags: filters.tag ? { some: { tag: { slug: filters.tag } } } : undefined,
+  };
+  const { posts, total } = await visiblePage(extra, page, BLOG_PAGE_SIZE);
+  return { posts, total, page, pageSize: BLOG_PAGE_SIZE };
 }
 
-export async function getPostBySlug(slug: string) {
-  return posts.find((post) => post.slug === slug) ?? null;
+export const getPostBySlug = cache(async (slug: string) => {
+  const row = await db.blogPost.findFirst({
+    where: { AND: [{ slug }, publiclyVisibleWhere(new Date())] },
+    select: postSelect,
+  });
+  return row ? toBlogPost(row) : null;
+});
+
+// Same category first, then the newest of the rest.
+export async function getRelatedPosts(post: Pick<BlogPost, "id" | "category">, limit = 3) {
+  const notThis: Prisma.BlogPostWhereInput = { id: { not: post.id } };
+  const same = post.category
+    ? (await visiblePage({ ...notThis, category: { slug: post.category.slug } }, 1, limit)).posts
+    : [];
+  if (same.length >= limit) return same;
+  const taken = [post.id, ...same.map((p) => p.id)];
+  const rest = await visiblePage({ id: { notIn: taken } }, 1, limit - same.length);
+  return [...same, ...rest.posts];
+}
+
+// Categories and tags that have at least one public post, for the filter bar.
+export async function getBlogFilters() {
+  const visible = publiclyVisibleWhere(new Date());
+  const [categories, tags] = await Promise.all([
+    db.blogCategory.findMany({
+      orderBy: { name: "asc" },
+      select: { name: true, slug: true, _count: { select: { posts: { where: visible } } } },
+    }),
+    db.blogTag.findMany({
+      orderBy: { name: "asc" },
+      select: { name: true, slug: true, _count: { select: { posts: { where: { post: visible } } } } },
+    }),
+  ]);
+  return {
+    categories: categories.filter((c) => c._count.posts > 0).map(({ name, slug }) => ({ name, slug })),
+    tags: tags.filter((t) => t._count.posts > 0).map(({ name, slug }) => ({ name, slug })),
+  };
+}
+
+// Raw SEO row plus resolved image URLs, for the article's metadata.
+export async function getPostMetadataSource(postId: number) {
+  const seo = await getSeo("POST", postId);
+  const [social, featured] = await Promise.all([
+    seo?.socialImageId ? db.media.findFirst({ where: { id: seo.socialImageId, uploadStatus: "READY" }, select: { key: true } }) : null,
+    db.blogPost.findUnique({ where: { id: postId }, select: { featuredImage: { select: { key: true, kind: true } } } }),
+  ]);
+  return {
+    seo,
+    socialImageUrl: social ? publicUrl(social.key) : null,
+    featuredImageUrl: featured?.featuredImage?.kind === "IMAGE" ? publicUrl(featured.featuredImage.key) : null,
+  };
 }

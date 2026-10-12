@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { firstParam, type SearchParams } from "@/lib/table-params";
+import { firstParam, listHref as href, type SearchParams } from "@/lib/table-params";
 import { cn } from "@/lib/utils";
 
 export type DataTableColumn<T> = {
@@ -55,25 +55,72 @@ type DataTableProps<T> = {
   caption: string;
 };
 
-function href(
-  basePath: string,
-  searchParams: SearchParams,
-  changes: Record<string, string | undefined>,
-) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...searchParams, ...changes })) {
-    const v = firstParam(value);
-    if (v) query.set(key, v);
-  }
-  const qs = query.toString();
-  return qs ? `${basePath}?${qs}` : basePath;
-}
-
 // Page numbers around the current one, with gaps shown as 0 (an ellipsis).
 function pageWindow(page: number, pages: number) {
   const wanted = new Set([1, pages, page - 1, page, page + 1]);
   const list = [...wanted].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
   return list.flatMap((n, i) => (i > 0 && n - list[i - 1] > 1 ? [0, n] : [n]));
+}
+
+// "Showing x-y of n" plus page links, shared by tables and other paged lists.
+export function ListPagination({
+  basePath,
+  searchParams,
+  page,
+  pageSize,
+  total,
+}: {
+  basePath: string;
+  searchParams: SearchParams;
+  page: number;
+  pageSize: number;
+  total: number;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex flex-col items-center justify-between gap-3 border-t p-3 text-sm text-slate-500 sm:flex-row sm:p-4">
+      <p>
+        {total === 0 ? "No results" : `Showing ${first}-${last} of ${total}`}
+      </p>
+      {pages > 1 && (
+        <Pagination className="mx-0 w-auto">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href={href(basePath, searchParams, { page: String(Math.max(1, page - 1)) })}
+                aria-disabled={page <= 1}
+                className={cn(page <= 1 && "pointer-events-none opacity-50")}
+              />
+            </PaginationItem>
+            {pageWindow(page, pages).map((n, i) => (
+              <PaginationItem key={`${n}-${i}`}>
+                {n === 0 ? (
+                  <span aria-hidden className="px-2">...</span>
+                ) : (
+                  <PaginationLink
+                    href={href(basePath, searchParams, { page: n === 1 ? undefined : String(n) })}
+                    isActive={n === page}
+                  >
+                    {n}
+                  </PaginationLink>
+                )}
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href={href(basePath, searchParams, { page: String(Math.min(pages, page + 1)) })}
+                aria-disabled={page >= pages}
+                className={cn(page >= pages && "pointer-events-none opacity-50")}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+    </div>
+  );
 }
 
 // Server-rendered table: sorting and paging are plain links over URL params.
@@ -92,10 +139,6 @@ export function DataTable<T>({
   emptyDescription = "Try changing or clearing the filters.",
   caption,
 }: DataTableProps<T>) {
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const last = Math.min(page * pageSize, total);
-
   return (
     <div className="overflow-hidden rounded-xl border bg-white">
       {toolbar && <div className="border-b p-3 sm:p-4">{toolbar}</div>}
@@ -156,45 +199,13 @@ export function DataTable<T>({
         </Table>
       )}
 
-      <div className="flex flex-col items-center justify-between gap-3 border-t p-3 text-sm text-slate-500 sm:flex-row sm:p-4">
-        <p>
-          {total === 0 ? "No results" : `Showing ${first}-${last} of ${total}`}
-        </p>
-        {pages > 1 && (
-          <Pagination className="mx-0 w-auto">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href={href(basePath, searchParams, { page: String(Math.max(1, page - 1)) })}
-                  aria-disabled={page <= 1}
-                  className={cn(page <= 1 && "pointer-events-none opacity-50")}
-                />
-              </PaginationItem>
-              {pageWindow(page, pages).map((n, i) => (
-                <PaginationItem key={`${n}-${i}`}>
-                  {n === 0 ? (
-                    <span aria-hidden className="px-2">...</span>
-                  ) : (
-                    <PaginationLink
-                      href={href(basePath, searchParams, { page: n === 1 ? undefined : String(n) })}
-                      isActive={n === page}
-                    >
-                      {n}
-                    </PaginationLink>
-                  )}
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  href={href(basePath, searchParams, { page: String(Math.min(pages, page + 1)) })}
-                  aria-disabled={page >= pages}
-                  className={cn(page >= pages && "pointer-events-none opacity-50")}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        )}
-      </div>
+      <ListPagination
+        basePath={basePath}
+        searchParams={searchParams}
+        page={page}
+        pageSize={pageSize}
+        total={total}
+      />
     </div>
   );
 }
@@ -207,6 +218,8 @@ type DataTableToolbarProps = {
   // Name of the search param.
   searchName?: string;
   searchPlaceholder?: string;
+  // Other params to carry through a submit (view, folder, ...).
+  keepParams?: string[];
   // Filter controls, e.g. <FilterSelect> or date inputs.
   children?: ReactNode;
 };
@@ -217,6 +230,7 @@ export function DataTableToolbar({
   searchParams,
   searchName = "q",
   searchPlaceholder = "Search",
+  keepParams = [],
   children,
 }: DataTableToolbarProps) {
   return (
@@ -226,7 +240,7 @@ export function DataTableToolbar({
       role="search"
       className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
     >
-      {(["sort", "order"] as const).map((name) => {
+      {["sort", "order", ...keepParams].map((name) => {
         const value = firstParam(searchParams[name]);
         return value ? <input key={name} type="hidden" name={name} value={value} /> : null;
       })}

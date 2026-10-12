@@ -35,6 +35,28 @@ export function describeActivity(action: string, raw: unknown): string {
       if (Array.isArray(d.removed) && d.removed.length) parts.push(`Removed ${list(d.removed)}`);
       return `${d.role}: ${parts.join("; ") || "no change"}`;
     }
+    case "post.create":
+    case "post.duplicate":
+    case "post.delete":
+    case "post.submit-for-review":
+    case "post.publish":
+    case "post.schedule":
+    case "post.unpublish":
+    case "post.archive":
+      return `"${d.title ?? "Untitled"}"`;
+    case "post.update":
+      return `"${d.title ?? "Untitled"}": updated ${list(d.fields)}`;
+    case "post.restore":
+      return `"${d.title ?? "Untitled"}": restored revision ${d.revision}`;
+    case "blog-category.create":
+    case "blog-tag.create":
+      return `Created ${d.name}`;
+    case "blog-category.update":
+    case "blog-tag.update":
+      return d.from !== d.to ? `Renamed ${d.from} to ${d.to}` : `Updated ${d.to}`;
+    case "blog-category.delete":
+    case "blog-tag.delete":
+      return `Deleted ${d.name} (${d.posts ?? 0} post${d.posts === 1 ? "" : "s"} affected)`;
   }
 
   return Object.entries(d)

@@ -33,6 +33,28 @@ export const permissionGroups = [
       { key: "activity.view", label: "View activity logs", description: "See the activity log" },
     ],
   },
+  {
+    key: "media",
+    label: "Media",
+    permissions: [
+      { key: "media.view", label: "View media", description: "Browse the media library" },
+      { key: "media.upload", label: "Upload media", description: "Upload files and create folders" },
+      { key: "media.edit", label: "Edit media", description: "Edit media details, rename and move files and folders" },
+      { key: "media.delete", label: "Delete media", description: "Delete files and folders" },
+    ],
+  },
+  {
+    key: "post",
+    label: "Blog",
+    permissions: [
+      { key: "post.view", label: "View posts", description: "See the post list and post details" },
+      { key: "post.create", label: "Create posts", description: "Add new posts" },
+      { key: "post.edit", label: "Edit posts", description: "Edit posts and submit them for review" },
+      { key: "post.delete", label: "Delete posts", description: "Delete posts" },
+      { key: "post.publish", label: "Publish posts", description: "Publish, schedule, unpublish and archive posts" },
+      { key: "blog-taxonomy.manage", label: "Manage categories and tags", description: "Create, rename and delete blog categories and tags" },
+    ],
+  },
 ] as const;
 
 export type PermissionKey =

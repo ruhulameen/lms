@@ -24,3 +24,18 @@ export function sortParams<K extends string>(
     order: order === "asc" || order === "desc" ? order : fallback.order,
   };
 }
+
+// Link to a list page with some params changed; undefined removes a param.
+export function listHref(
+  basePath: string,
+  searchParams: SearchParams,
+  changes: Record<string, string | undefined>,
+) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...searchParams, ...changes })) {
+    const v = firstParam(value);
+    if (v) query.set(key, v);
+  }
+  const qs = query.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
+}

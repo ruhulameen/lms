@@ -1,7 +1,7 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
 
-const globalForDb = globalThis as unknown as { db?: PrismaClient };
+const globalForDb = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient() {
   const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
@@ -9,6 +9,6 @@ function createPrismaClient() {
 }
 
 // Reuse one client across hot reloads in development.
-export const db = globalForDb.db ?? createPrismaClient();
+export const db = globalForDb.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForDb.db = db;
+if (process.env.NODE_ENV !== "production") globalForDb.prisma = db;

@@ -13,7 +13,7 @@ The spec was written generically; some choices were already made in this codebas
 | Topic | Spec (§3 and others) | This project | State |
 | --- | --- | --- | --- |
 | Database | PostgreSQL | MySQL/MariaDB (`@prisma/adapter-mariadb`), one migration applied | decided 2026-10-12: MySQL is final |
-| Data fetching | TanStack Query, Zustand where needed | No browser-side data calls: server components read, server actions mutate | decided; revisit only for the visual builder (Phase 3) |
+| Data fetching | TanStack Query, Zustand where needed | No browser-side data calls: server components read, server actions mutate | decided |
 | "API contracts" (§31) | Define API contracts before UI | No public API; the contract is the `src/services` and `src/actions` function signatures | decided |
 | Forms | React Hook Form + Zod | shadcn fields + `useActionState`, Zod in server actions | decided 2026-10-12: Zod is mandatory for validation; React Hook Form may be added where a form needs it |
 | Auth | not specified | Better Auth, DB-stored roles, optional TOTP 2FA | decided |
@@ -23,7 +23,9 @@ The spec was written generically; some choices were already made in this codebas
 | Email (§24) | Email settings | Logged to console; no provider | decided 2026-10-12: console logging for now; a provider is needed before production |
 | Storage (§20) | S3-compatible | none yet | decided 2026-10-12: Cloudflare R2, through its S3-compatible API |
 | Sidebar (§5) | 240–260px, collapses to 68–72px | 288px (`18rem`) | fix in Phase 1 |
-| Admin nav (§4) | Website, Commerce, ... | Ported from an HTML mockup: has "WooCommerce", "Website Builder", "Drag & Drop Editor" | fix in Phase 1 |
+| Admin nav (§4) | Website, Commerce, ... | Rebuilt to the spec's structure in Phase 1, without "Website Builder" | done |
+| Website CMS pages (§7) | Pages, landing pages, templates | Not built; public pages stay coded | decided 2026-10-12: dropped, blog only |
+| Visual page builder (§8, §9) | Elementor-style drag-and-drop builder | Not built; pages use a rich text body | decided 2026-10-12: dropped for now |
 
 ## Phases
 
@@ -53,20 +55,20 @@ Acceptance criteria (§32):
 
 The auth module is complete: forgot/reset password, 2FA sign-in and setup, email verification banner, rate limiting.
 
-### Phase 2 — CMS
+### Phase 2 — Blog and media (built; browser check pending)
 
-Pages, blog, media, templates, revisions and publishing (§7, §20, §21, §23).
+Stage-by-stage plan and decisions are in [task.md](task.md). Scope cut by the owner on 2026-10-12: no CMS pages and no page templates (spec §7), so only §20, §21 and post revisions from §23 are built.
 
-- Media library on object storage: upload, folders, alt text and metadata, WebP/AVIF.
-- Pages with Draft / Pending Review / Scheduled / Published / Archived, preview, duplicate.
+- Media library on R2: chunked direct uploads, folders, alt text and metadata.
 - Blog posts, categories, tags, authors — replaces the sample data in `src/services/blog.ts`.
-- Revisions for pages and posts: view, compare, restore.
-- Navigation, header and footer management.
-- Shared `SEOData` fields on content (full SEO tooling is Phase 7).
+- Draft / pending review / scheduled / published / archived, preview, duplicate.
+- Revisions for posts: view, compare, restore.
+- Basic SEO fields on posts (full SEO tooling is Phase 7).
+- Dropped by the owner: navigation, header and footer management; the public header and footer stay coded.
 
-### Phase 3 — Visual builder
+### Phase 3 — Visual builder (dropped for now)
 
-Component registry, JSON tree, drag-and-drop, renderer, responsive controls, global styles (§8, §9). Not started until the Phase 2 content model and renderer are stable (§31).
+Dropped by the owner on 2026-10-12: the project will not use a visual page builder. Pages keep the rich text body from Phase 2. Spec §8 and §9 (builder, builder components, dnd-kit) are out of scope until this is reopened. Phase numbers are kept as in the spec, so Phase 4 follows Phase 2.
 
 ### Phase 4 — LMS
 
@@ -110,8 +112,8 @@ Security review, rate limiting, performance, accessibility, test coverage, loggi
 - [x] Admin authentication
 - [x] Role-based access control
 - [ ] Dashboard
-- [ ] Website CMS
-- [ ] Visual page builder
+- Website CMS (pages, templates) — dropped for now (2026-10-12); blog only
+- Visual page builder — dropped for now (2026-10-12)
 - [ ] Course management
 - [ ] Curriculum builder
 - [ ] Lesson management
@@ -133,12 +135,12 @@ Security review, rate limiting, performance, accessibility, test coverage, loggi
 - [ ] Redirect manager
 - [ ] 404 monitor
 - [ ] Search Console integration
-- [ ] Media library
-- [ ] Blog CMS
+- [ ] Media library (built; R2 storage verified from a script, browser upload not yet tried)
+- [x] Blog CMS (posts, categories, tags, authors, workflow, preview; the editor UI is not yet browser-tested)
 - [x] User management
 - [x] Roles and permissions
 - [x] Activity logs
-- [ ] Revision history
+- [x] Revision history (posts: list, view, compare, restore)
 - [ ] Settings
 - [ ] Security
 - [ ] Performance

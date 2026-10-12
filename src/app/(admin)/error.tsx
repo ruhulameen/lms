@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 
 export default function AdminError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   return (
     <div role="alert" className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-white p-10 text-center">
@@ -22,7 +22,7 @@ export default function AdminError({
       {error.digest && (
         <p className="mt-2 font-mono text-xs text-slate-400">Reference: {error.digest}</p>
       )}
-      <Button className="mt-6" onClick={() => unstable_retry()}>
+      <Button className="mt-6" onClick={() => retry()}>
         Try again
       </Button>
     </div>

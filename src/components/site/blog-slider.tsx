@@ -5,15 +5,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { categoryStyle } from "@/lib/category";
-import { unsplash } from "@/lib/format";
+import type { BlogPost } from "@/services/blog";
 import { cn } from "@/lib/utils";
 
 type Slide = {
   slug: string;
   title: string;
-  category: string;
+  category: string | null;
   excerpt: string;
-  image: string;
+  image: BlogPost["image"];
 };
 
 const arrowClassName =
@@ -49,25 +49,31 @@ export function BlogSlider({ slides }: { slides: Slide[] }) {
             aria-hidden={i !== index}
             className="relative h-full w-full shrink-0"
           >
-            <Image
-              src={unsplash(slide.image, 1600)}
-              alt=""
-              fill
-              sizes="100vw"
-              preload={i === 0}
-              className="object-cover"
-            />
+            {slide.image ? (
+              <Image
+                src={slide.image.url}
+                alt=""
+                fill
+                sizes="100vw"
+                preload={i === 0}
+                className="object-cover"
+              />
+            ) : (
+              <div aria-hidden className="absolute inset-0 bg-linear-to-br from-navy to-blue-900" />
+            )}
             <div className="absolute inset-0 bg-linear-to-r from-navy/90 via-navy/75 to-navy/15" />
             <div className="relative z-10 mx-auto flex h-full max-w-7xl items-center px-14 sm:px-16 lg:px-8">
               <div className="max-w-2xl">
-                <span
-                  className={cn(
-                    "mb-5 inline-block rounded-full px-3 py-1.5 text-xs font-bold text-white",
-                    categoryStyle(slide.category).solid,
-                  )}
-                >
-                  {slide.category}
-                </span>
+                {slide.category && (
+                  <span
+                    className={cn(
+                      "mb-5 inline-block rounded-full px-3 py-1.5 text-xs font-bold text-white",
+                      categoryStyle(slide.category).solid,
+                    )}
+                  >
+                    {slide.category}
+                  </span>
+                )}
                 <h2 className="mb-5 text-3xl leading-tight font-extrabold text-white md:text-5xl">
                   {slide.title}
                 </h2>

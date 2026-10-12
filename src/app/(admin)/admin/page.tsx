@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Minus, Plus, Shield } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus, Plus, Shield, SquarePen } from "lucide-react";
 import { BarChart } from "@/components/admin/bar-chart";
 import { DateRangeFilter } from "@/components/admin/date-range-filter";
+import { ContentStatusBadge } from "@/components/admin/content-status-badge";
 import { EmptyState } from "@/components/admin/empty-state";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -53,9 +54,13 @@ export default async function AdminDashboardPage({
 }) {
   const user = await requirePermission("dashboard.view");
   const range = parseDateRange(await searchParams);
-  const data = await getDashboard(range, can(user, "activity.view"));
+  const data = await getDashboard(range, can(user, "activity.view"), {
+    posts: can(user, "post.view"),
+    media: can(user, "media.view"),
+  });
 
   const quickActions = [
+    can(user, "post.create") && { href: "/admin/blog/new", label: "New post", icon: SquarePen },
     can(user, "user.create") && { href: "/admin/users/new", label: "New user", icon: Plus },
     can(user, "role.manage") && { href: "/admin/users/roles", label: "New role", icon: Shield },
   ].filter((a) => a !== false);
@@ -97,6 +102,38 @@ export default async function AdminDashboardPage({
           </ul>
         </Card>
       </div>
+
+      {(data.content.posts || data.content.media !== null) && (
+        <Card title="Content" className="mt-6">
+          <div className="flex flex-wrap gap-x-10 gap-y-4">
+            {data.content.posts && (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-500">Blog posts</p>
+                <ul className="flex flex-wrap gap-4">
+                  <li className="flex items-center gap-2"><ContentStatusBadge status="PUBLISHED" /> <span className="font-semibold">{formatCount(data.content.posts.published)}</span></li>
+                  <li className="flex items-center gap-2"><ContentStatusBadge status="SCHEDULED" /> <span className="font-semibold">{formatCount(data.content.posts.scheduled)}</span></li>
+                  <li className="flex items-center gap-2">
+                    <ContentStatusBadge status="PENDING_REVIEW" /> <span className="font-semibold">{formatCount(data.content.posts.pendingReview)}</span>
+                    {data.content.posts.pendingReview > 0 && can(user, "post.publish") && (
+                      <Link href="/admin/blog?status=PENDING_REVIEW" className="text-sm font-medium text-blue-700 hover:underline">Review them</Link>
+                    )}
+                  </li>
+                  <li className="flex items-center gap-2"><ContentStatusBadge status="DRAFT" /> <span className="font-semibold">{formatCount(data.content.posts.drafts)}</span></li>
+                </ul>
+              </div>
+            )}
+            {data.content.media !== null && (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-500">Media library</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/media" className="hover:underline">{formatCount(data.content.media)}</Link>
+                  <span className="ml-2 text-sm font-normal text-slate-500">file{data.content.media === 1 ? "" : "s"}</span>
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card title={`Sign-ups per day (${range.label})`} className="mt-6">
         {data.signUps === 0 ? (
