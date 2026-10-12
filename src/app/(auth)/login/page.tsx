@@ -11,7 +11,12 @@ export const metadata: Metadata = {
   title: "Log in",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reset?: string }>;
+}) {
+  const { reset } = await searchParams;
   const user = await getCurrentUser();
   if (user) redirect(panelHome(user.panel));
 
@@ -21,6 +26,14 @@ export default async function LoginPage() {
       title="Welcome Back"
       description="Log in to continue your learning journey"
     >
+      {reset === "success" && (
+        <p
+          role="status"
+          className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-800"
+        >
+          Password reset. Log in with your new password.
+        </p>
+      )}
       <LoginForm />
       <p className="mt-6 text-center text-sm text-gray-600">
         Don&apos;t have an account?{" "}

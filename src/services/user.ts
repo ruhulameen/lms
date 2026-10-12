@@ -1,10 +1,12 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { panelForRole } from "@/lib/panel";
+import type { Prisma, UserStatus } from "@/generated/prisma/client";
+import type { PermissionKey } from "@/lib/permissions";
 
 // The `admin` role is a superuser: it passes every permission check.
 const SUPERUSER_ROLE = "admin";
@@ -68,12 +70,122 @@ export async function requireUser() {
   return user;
 }
 
-export function can(user: CurrentUser, permission: string) {
+export function can(user: CurrentUser, permission: PermissionKey) {
   return user.role === SUPERUSER_ROLE || user.permissions.includes(permission);
 }
 
-export async function requirePermission(permission: string) {
+// Denied access has two shapes; follow them in new code.
+// - Pages, layouts and services: `await requirePermission(key)`. It calls
+//   forbidden(), which renders app/(admin)/forbidden.tsx with a 403.
+// - Server actions: `const auth = await authorizeAction(key)`; if `!auth.ok`
+//   return `auth.result` (a typed { ok: false } the form shows as a message).
+export async function requirePermission(permission: PermissionKey) {
   const user = await requireUser();
-  if (!can(user, permission)) throw new Error("Forbidden");
+  if (!can(user, permission)) forbidden();
   return user;
+}
+
+export const FORBIDDEN_MESSAGE = "You do not have permission to do that.";
+
+// Never redirects or throws, so actions can hand the failure back to the form.
+export async function authorizeAction(permission: PermissionKey) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { ok: false as const, result: { ok: false as const, error: "Your session has expired. Sign in again." } };
+  }
+  if (!can(user, permission)) {
+    return { ok: false as const, result: { ok: false as const, error: FORBIDDEN_MESSAGE } };
+  }
+  return { ok: true as const, user };
+}
+
+export const USER_PAGE_SIZE = 15;
+
+export const USER_SORT_KEYS = ["name", "email", "role", "status", "joined"] as const;
+export type UserSortKey = (typeof USER_SORT_KEYS)[number];
+
+export type UserListFilters = {
+  search?: string;
+  role?: string;
+  status?: UserStatus;
+  sort: UserSortKey;
+  order: "asc" | "desc";
+  page: number;
+};
+
+// Admin data: call only after requirePermission("user.view").
+export async function listUsers(filters: UserListFilters) {
+  const search = filters.search?.trim();
+  const where: Prisma.UserWhereInput = {
+    status: filters.status,
+    role: filters.role ? { name: filters.role } : undefined,
+    OR: search
+      ? [{ name: { contains: search } }, { email: { contains: search } }]
+      : undefined,
+  };
+  const dir = filters.order;
+  const orderBy: Prisma.UserOrderByWithRelationInput[] = [
+    filters.sort === "role"
+      ? { role: { name: dir } }
+      : filters.sort === "joined"
+        ? { createdAt: dir }
+        : { [filters.sort]: dir },
+    { id: "asc" },
+  ];
+
+  const [rows, total] = await Promise.all([
+    db.user.findMany({
+      where,
+      orderBy,
+      skip: (filters.page - 1) * USER_PAGE_SIZE,
+      take: USER_PAGE_SIZE,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true,
+        emailVerified: true,
+        twoFactorEnabled: true,
+        createdAt: true,
+        role: { select: { name: true } },
+      },
+    }),
+    db.user.count({ where }),
+  ]);
+  return { rows, total, page: filters.page, pageSize: USER_PAGE_SIZE };
+}
+
+// Admin data: call only after requirePermission("user.view").
+export async function getUserDetail(id: number) {
+  return db.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      emailVerified: true,
+      twoFactorEnabled: true,
+      createdAt: true,
+      roleId: true,
+      role: { select: { name: true } },
+    },
+  });
+}
+
+// Roles for selects and filters.
+export async function listRoleOptions() {
+  return db.role.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+// Separate from getCurrentUser so the common session lookup stays unchanged.
+export async function isEmailVerified(userId: number) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { emailVerified: true },
+  });
+  return user?.emailVerified ?? false;
 }

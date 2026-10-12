@@ -31,6 +31,7 @@ model User {
   sessions         Session[]
   accounts         Account[]
   twoFactors       TwoFactor[]
+  activityLogs     ActivityLog[]
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -70,6 +71,24 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@index([permissionId])
   @@map("role_permission")
+}
+
+// Who did what: written by logActivity in src/services/activity.ts.
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    Int?
+  action    String   // e.g. user.suspend
+  entity    String   // e.g. user
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("activity_log")
 }
 
 // The models below are managed by Better Auth (see src/lib/auth.ts).
@@ -133,4 +152,15 @@ model TwoFactor {
   @@index([secret(length: 191)])
   @@index([userId])
   @@map("two_factor")
+}
+
+// Fixed-window limiter for server actions: see src/lib/rate-limit.ts.
+model RateLimit {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(255)
+  count       Int      @default(0)
+  windowStart DateTime
+
+  @@index([windowStart])
+  @@map("rate_limit")
 }

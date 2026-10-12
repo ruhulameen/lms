@@ -4,7 +4,8 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { StudentSidebar } from "@/components/student/student-sidebar";
 import { panelHome } from "@/lib/panel";
-import { requireUser } from "@/services/user";
+import { VerifyEmailBanner } from "@/components/student/verify-email-banner";
+import { isEmailVerified, requireUser } from "@/services/user";
 
 export default async function StudentLayout({
   children,
@@ -13,6 +14,7 @@ export default async function StudentLayout({
 }) {
   const user = await requireUser();
   if (user.panel !== "student") redirect(panelHome(user.panel));
+  const verified = await isEmailVerified(user.id);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-gray-800">
@@ -32,7 +34,10 @@ export default async function StudentLayout({
           <StudentSidebar
             user={{ name: user.name, email: user.email, image: user.image }}
           />
-          <main className="min-w-0">{children}</main>
+          <main className="min-w-0">
+            {!verified && <VerifyEmailBanner email={user.email} />}
+            {children}
+          </main>
         </div>
       </div>
       <SiteFooter />

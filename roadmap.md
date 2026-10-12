@@ -4,7 +4,7 @@ Source: `~/elearning_cms_admin_dashboard_requirements.docx` ("eLearning CMS & Ad
 
 The current work list lives in [task.md](task.md). This file is the long view: what each phase delivers and where the project stands.
 
-Status as of 2026-10-12: **Phase 1 in progress.**
+Status as of 2026-10-12: **Phase 1 built; browser check by hand still open (see task.md).**
 
 ## Where the project differs from the spec
 
@@ -29,7 +29,7 @@ The spec was written generically; some choices were already made in this codebas
 
 Order follows §29. Each phase ends when its critical workflows are tested (§31).
 
-### Phase 1 — Foundation (in progress)
+### Phase 1 — Foundation (built, pending browser check)
 
 Next.js, database, Prisma, authentication, RBAC, admin shell, dashboard shell, seed data, activity logging.
 
@@ -39,19 +39,19 @@ Acceptance criteria (§32):
 | --- | --- |
 | Admin login/logout works | built |
 | Unauthenticated users cannot access `/admin` | built (guard in the admin layout) |
-| RBAC works at UI and backend levels | partial — `can` / `requirePermission` exist, but no permissions are seeded and nothing calls them |
+| RBAC works at UI and backend levels | built — permissions seeded; every admin page and action checks them; nav and buttons filtered |
 | Database and Prisma migrations work | built (on MySQL) |
 | Seed data loads reliably | built (roles + first admin from env) |
-| Dashboard reads database-backed data | not started — placeholder page |
-| Sidebar navigation and collapse work | partial — sidebar built, every item except Overview is disabled; collapse and width to verify against §5 |
-| User and permission management work | not started |
-| Basic activity logging works | not started |
+| Dashboard reads database-backed data | built — user counts, sign-ups, recent activity, date-range filter |
+| Sidebar navigation and collapse work | built (256px, 72px rail, 64px top bar); collapse not yet checked in a browser |
+| User and permission management work | built — users, roles, permission matrix |
+| Basic activity logging works | built — log table, helper, list page |
 | TypeScript and linting pass | passing (2026-10-12) |
 | No production credentials are hard-coded | ok — secrets in `.env`, which is git-ignored |
 | Responsive behaviour is verified | not verified |
-| Critical security controls are tested | not started — no test setup yet |
+| Critical security controls are tested | exercised by hand-driven runs during the build; no automated end-to-end tests (owner's decision), Vitest unit tests only |
 
-Also outstanding from the auth module: forgot/reset password pages, 2FA sign-in step and 2FA setup, email verification flow.
+The auth module is complete: forgot/reset password, 2FA sign-in and setup, email verification banner, rate limiting.
 
 ### Phase 2 — CMS
 
@@ -107,8 +107,8 @@ Security review, rate limiting, performance, accessibility, test coverage, loggi
 
 ## Feature checklist (§33)
 
-- [ ] Admin authentication — login/logout built; reset password and 2FA sign-in missing
-- [ ] Role-based access control — tables and helpers built; not enforced yet
+- [x] Admin authentication
+- [x] Role-based access control
 - [ ] Dashboard
 - [ ] Website CMS
 - [ ] Visual page builder
@@ -135,9 +135,9 @@ Security review, rate limiting, performance, accessibility, test coverage, loggi
 - [ ] Search Console integration
 - [ ] Media library
 - [ ] Blog CMS
-- [ ] User management
-- [ ] Roles and permissions
-- [ ] Activity logs
+- [x] User management
+- [x] Roles and permissions
+- [x] Activity logs
 - [ ] Revision history
 - [ ] Settings
 - [ ] Security

@@ -25,53 +25,60 @@ Still open:
 ### Housekeeping
 
 - [ ] Unstage `.idea/` and add it to `.gitignore`.
-- [ ] Delete `src/components/example.tsx` if unused.
+- [x] Delete `src/components/example.tsx` if unused.
 
 ### Auth
 
-- [ ] Forgot-password and reset-password pages and actions.
-- [ ] 2FA sign-in step (login currently answers "Two-factor sign-in is not available yet").
-- [ ] 2FA setup and disable in account settings (TOTP + backup codes).
-- [ ] Email verification: decide whether unverified users may sign in; add the "verify your email" screen.
-- [ ] Rate limiting on login, sign-up and reset.
+- [x] Forgot-password and reset-password pages and actions.
+- [x] 2FA sign-in step (login currently answers "Two-factor sign-in is not available yet").
+- [x] 2FA setup and disable in account settings (TOTP + backup codes).
+- [x] Email verification: unverified users may sign in and see a "verify your email" banner with a resend button; `/verify-email` landing page.
+- [x] Rate limiting on login, sign-up and reset.
 
 ### RBAC
 
-- [ ] Define the permission key list (`page.view`, `course.publish`, `order.refund`, `user.manage`, `settings.manage`, ... per spec §22) in one place.
-- [ ] Seed the permission list; `instructor` and `student` get their default permissions (`admin` is the superuser and needs none).
-- [ ] Call `requirePermission` in every admin action and service; hide nav items and buttons the user lacks permission for.
-- [ ] Friendly "no access" page instead of the thrown `Forbidden` error.
+- [x] Define the permission key list in one place (`src/lib/permissions.ts`); Phase 1 keys only, later modules add theirs.
+- [x] Seed the permission list; `instructor` and `student` get their default permissions (`admin` is the superuser and needs none).
+- [x] Call `requirePermission` / `authorizeAction` in every admin page and action; nav items and buttons are filtered by permission.
+- [x] Friendly "no access" page instead of the thrown `Forbidden` error.
 
 ### Users, roles and permissions (admin)
 
-- [ ] `/admin/users`: list with search, role and status filters, server-side pagination.
-- [ ] Create and edit a user; change role; suspend, ban, reactivate.
-- [ ] `/admin/users/roles`: create, rename and delete roles (reserved roles protected).
-- [ ] Permission matrix: roles × permissions with checkboxes.
+- [x] `/admin/users`: list with search, role and status filters, server-side pagination.
+- [x] Create and edit a user; change role; suspend, ban, reactivate.
+- [x] `/admin/users/roles`: create, rename and delete roles (reserved roles protected).
+- [x] Permission matrix: roles × permissions with checkboxes.
 
 ### Activity log
 
-- [ ] `ActivityLog` model: user, action, entity, entity ID, details, timestamp.
-- [ ] `logActivity` helper in services, called from privileged actions (role change, status change, permission change, sign-in).
-- [ ] `/admin/activity-logs`: list with search and filters.
+- [x] `ActivityLog` model: user, action, entity, entity ID, details, timestamp.
+- [x] `logActivity` helper in `src/services/activity.ts`, called from sign-in/out, failed sign-ins, password and 2FA changes, and user, role and permission changes.
+- [x] `/admin/activity-logs`: list with search and filters.
 
 ### Admin shell
 
-- [ ] Rebuild `admin-nav.ts` to the spec's information architecture (§4): Website, Courses, Learners, Commerce, Forms, Analytics, Marketing, SEO, Blog, Media, Users, Settings, Activity Logs. Remove "WooCommerce" and other mockup labels.
-- [ ] Sidebar width 240–260px, collapsing to an icon rail of 68–72px on desktop; top bar 64–72px.
-- [ ] Shared admin building blocks: page header, data table (sort, filter, pagination), status badge, confirm dialog, toast, empty / loading / error states.
-- [ ] `loading.tsx`, `error.tsx` and `not-found.tsx` for the admin panel.
+- [x] Rebuild `admin-nav.ts` to the spec's information architecture (§4): Website, Courses, Learners, Commerce, Forms, Analytics, Marketing, SEO, Blog, Media, Users, Settings, Activity Logs. Remove "WooCommerce" and other mockup labels.
+- [x] Sidebar width 240–260px, collapsing to an icon rail of 68–72px on desktop; top bar 64–72px.
+- [x] Shared admin building blocks: page header, data table (sort, filter, pagination), status badge, confirm dialog, toast, empty / loading / error states.
+- [x] `loading.tsx`, `error.tsx` and `not-found.tsx` for the admin panel.
 
 ### Dashboard
 
-- [ ] Replace the placeholder with database-backed widgets available now: user counts by role, new sign-ups, recent activity.
-- [ ] Date range filter (Today, 7 Days, 30 Days, ... per §6), ready for the later revenue and course widgets.
+- [x] Replace the placeholder with database-backed widgets available now: user counts by role, new sign-ups, recent activity.
+- [x] Date range filter (Today, 7 Days, 30 Days, ... per §6), ready for the later revenue and course widgets.
 
 ### Quality
 
-- [ ] Test setup: unit/integration (Vitest) and end-to-end (Playwright).
-- [ ] Tests for the critical paths: login, logout, `/admin` blocked when signed out, blocked for a student, permission denied on an action, suspended user loses access.
-- [ ] Check the admin shell at mobile, tablet and desktop widths.
+- [x] Vitest set up (`pnpm test`) with unit tests for `parseDateRange` and `panelForRole` / `panelHome` (`tests/unit/`).
+- End-to-end tests: deliberately not included, by the owner's decision.
+- [ ] Browser check of the admin shell at mobile, tablet and desktop widths, to be done by hand.
+- [ ] Browser check, by hand, of what was never run in a browser: two-factor setup (QR, backup codes, verify, redirect back with "Two-factor authentication is on"), the code input on `/two-factor`, confirm dialogs and toasts, keyboard use of the permission matrix.
+
+### Known issues
+
+- [ ] "No access" and not-found pages inside the admin panel show the right content but answer HTTP 200, because `src/app/(admin)/loading.tsx` starts streaming before the permission check. A fix means moving the loading boundary into each route segment (or a `proxy.ts` permission map).
+- [ ] Nothing calls `pruneRateLimits`; old `rate_limit` rows are only overwritten when their key is hit again.
+- [ ] The user detail page lists activity done by the user, not actions done to them.
 
 ## Done
 

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { ShieldCheck } from "lucide-react";
+import { TwoFactorSection } from "@/components/auth/two-factor-section";
 import { PasswordForm } from "@/components/student/account-forms";
 import { PageHeading } from "@/components/student/page-heading";
-import { cn } from "@/lib/utils";
 import { requireUser } from "@/services/user";
 
 export const metadata: Metadata = {
@@ -12,9 +11,10 @@ export const metadata: Metadata = {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ password?: string }>;
+  searchParams: Promise<{ password?: string; "two-factor"?: string }>;
 }) {
-  const [user, { password }] = await Promise.all([requireUser(), searchParams]);
+  const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const { password } = params;
 
   return (
     <>
@@ -37,32 +37,10 @@ export default async function SettingsPage({
           <PasswordForm />
         </section>
 
-        <section className="flex items-start gap-4 rounded-2xl border border-gray-200 bg-white p-6">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-            <ShieldCheck className="size-5" />
-          </span>
-          <div className="flex-1">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold text-navy">
-                Two-factor authentication
-              </h2>
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase",
-                  user.twoFactorEnabled
-                    ? "bg-green-100 text-green-700"
-                    : "bg-slate-100 text-slate-600",
-                )}
-              >
-                {user.twoFactorEnabled ? "On" : "Off"}
-              </span>
-            </div>
-            <p className="text-sm text-gray-500">
-              Protect your account with a code from an authenticator app.
-              Setup will be available here soon.
-            </p>
-          </div>
-        </section>
+        <TwoFactorSection
+          enabled={user.twoFactorEnabled}
+          justEnabled={params["two-factor"] === "enabled"}
+        />
       </div>
     </>
   );

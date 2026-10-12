@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { auth } from "../src/lib/auth";
 import { db } from "../src/lib/db";
+import { allPermissions } from "../src/lib/permissions";
 
 // `student` and `instructor` are reserved names: panel routing depends on them.
 const roles = [
@@ -8,6 +9,24 @@ const roles = [
   { name: "instructor", description: "Creates and teaches courses" },
   { name: "admin", description: "Full access to the admin panel" },
 ];
+
+// Keeps the permission table equal to the list in src/lib/permissions.ts.
+async function seedPermissions() {
+  for (const permission of allPermissions) {
+    await db.permission.upsert({
+      where: { key: permission.key },
+      update: { description: permission.description },
+      create: { key: permission.key, description: permission.description },
+    });
+  }
+  const { count } = await db.permission.deleteMany({
+    where: { key: { notIn: allPermissions.map((p) => p.key) } },
+  });
+  console.log(
+    `Seeded ${allPermissions.length} permissions` +
+      (count ? `, removed ${count} obsolete` : ""),
+  );
+}
 
 // Self sign-up only creates students, so the first admin comes from here.
 async function seedAdmin() {
@@ -43,6 +62,7 @@ async function main() {
   }
   console.log(`Seeded ${roles.length} roles: ${roles.map((r) => r.name).join(", ")}`);
 
+  await seedPermissions();
   await seedAdmin();
 }
 

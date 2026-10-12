@@ -9,14 +9,39 @@ import { sendEmail } from "@/lib/email";
 // Role given to anyone who signs up themselves.
 const DEFAULT_ROLE = "student";
 
+// Imported lazily: services/activity is server-only, which the seed script
+// (it imports this file outside Next) cannot load. Failures never block sign-in.
+async function logSignIn(userId: number) {
+  try {
+    const { logActivity } = await import("@/services/activity");
+    await logActivity({ userId, action: "auth.sign-in", entity: "user", entityId: userId });
+  } catch {}
+}
+
+async function logPasswordReset(userId: number) {
+  try {
+    const { logActivity } = await import("@/services/activity");
+    await logActivity({ userId, action: "auth.password-reset", entity: "user", entityId: userId });
+  } catch {}
+}
+
 export const auth = betterAuth({
   appName: "LMS",
   database: prismaAdapter(db, { provider: "mysql" }),
   advanced: {
     database: { generateId: "serial" },
   },
+  // Off by default outside production. It only guards the HTTP routes under
+  // /api/auth; server actions are limited by src/lib/rate-limit.ts.
+  rateLimit: { enabled: true },
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
+    revokeSessionsOnPasswordReset: true,
+    onPasswordReset: async ({ user }) => {
+      await logPasswordReset(Number(user.id));
+    },
     sendResetPassword: async ({ user, url }) => {
       await sendEmail({
         to: user.email,
@@ -71,10 +96,13 @@ export const auth = betterAuth({
             });
           }
         },
+        after: async (session) => {
+          await logSignIn(Number(session.userId));
+        },
       },
     },
   },
   // Authenticator app (TOTP) and backup codes only; emailed codes stay off
   // because `otpOptions.sendOTP` is not configured.
-  plugins: [twoFactor(), nextCookies()],
+  plugins: [twoFactor({ issuer: "LMS" }), nextCookies()],
 });

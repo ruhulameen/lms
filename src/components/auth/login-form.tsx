@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Lock, Mail } from "lucide-react";
 import { login, type AuthState } from "@/actions/auth";
 import { AuthField } from "@/components/auth/auth-field";
@@ -33,15 +34,23 @@ export function LoginForm() {
         placeholder="Enter your password"
         required
       />
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-        <input
-          type="checkbox"
-          name="remember"
-          defaultChecked
-          className="size-4 accent-blue-600"
-        />
-        Remember me
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            name="remember"
+            defaultChecked
+            className="size-4 accent-blue-600"
+          />
+          Remember me
+        </label>
+        <Link
+          href="/forgot-password"
+          className="rounded text-sm font-semibold text-blue-600 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-blue-600/40"
+        >
+          Forgot password?
+        </Link>
+      </div>
       {state.error && (
         <p role="alert" className="text-sm text-red-600">
           {state.error}

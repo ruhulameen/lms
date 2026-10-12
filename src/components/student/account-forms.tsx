@@ -10,14 +10,14 @@ import { cn } from "@/lib/utils";
 
 const initialState: AccountState = { status: "idle" };
 
-const fieldClassName =
+export const fieldClassName =
   "w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-3 focus:ring-blue-600/10 read-only:bg-slate-50 read-only:text-gray-500";
-const labelClassName =
+export const labelClassName =
   "mb-2 block text-xs font-bold tracking-wider text-gray-500 uppercase";
-const submitClassName =
+export const submitClassName =
   "w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60";
 
-function Feedback({ state }: { state: AccountState }) {
+export function Feedback({ state }: { state: AccountState }) {
   if (state.status === "idle") return null;
   return (
     <p

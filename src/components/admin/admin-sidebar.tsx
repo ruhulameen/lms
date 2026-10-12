@@ -2,120 +2,225 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, LogOut } from "lucide-react";
-import { logout } from "@/actions/auth";
-import { adminNav } from "@/components/admin/admin-nav";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChevronRight, GraduationCap } from "lucide-react";
+import type {
+  AdminNavGroupView,
+  AdminNavLinkView,
+  AdminNavView,
+} from "@/components/admin/admin-nav";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
 
 type AdminSidebarProps = {
-  user: {
-    name: string;
-    role: string | null;
-    image: string | null;
-  };
+  // Already filtered by the current user's permissions on the server.
+  nav: AdminNavView;
 };
 
-const itemClassName =
-  "h-10 gap-3 rounded-l-none border-l-[3px] border-transparent px-4 text-sidebar-foreground/70 hover:border-sidebar-primary data-active:border-sidebar-primary data-active:bg-sidebar-primary/15 data-active:text-sidebar-accent-foreground";
+const rowClassName =
+  "h-10 gap-3 px-3 text-sidebar-foreground/75 group-data-[collapsible=icon]:mx-auto data-active:bg-sidebar-primary/20 data-active:text-sidebar-accent-foreground";
 
-function isActive(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname.startsWith(href);
+function isGroup(
+  entry: AdminNavLinkView | AdminNavGroupView,
+): entry is AdminNavGroupView {
+  return "items" in entry;
 }
 
-export function AdminSidebar({ user }: AdminSidebarProps) {
-  const pathname = usePathname();
+// The most specific link wins, so /admin/users/roles does not also light up /admin/users.
+function findActiveHref(nav: AdminNavView, pathname: string) {
+  const hrefs = nav
+    .flatMap((entry) => (isGroup(entry) ? entry.items : [entry]))
+    .flatMap((item) => (item.href ? [item.href] : []))
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`));
+  return hrefs.sort((a, b) => b.length - a.length)[0];
+}
+
+function NavLink({
+  item,
+  active,
+}: {
+  item: AdminNavLinkView;
+  active: boolean;
+}) {
   const { setOpenMobile } = useSidebar();
+  return (
+    <SidebarMenuItem>
+      {item.href ? (
+        <SidebarMenuButton
+          className={rowClassName}
+          isActive={active}
+          tooltip={item.label}
+          render={
+            <Link
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              onClick={() => setOpenMobile(false)}
+            />
+          }
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </SidebarMenuButton>
+      ) : (
+        <SidebarMenuButton className={rowClassName} tooltip={item.label} disabled>
+          {item.icon}
+          <span>{item.label}</span>
+        </SidebarMenuButton>
+      )}
+    </SidebarMenuItem>
+  );
+}
+
+function NavGroup({
+  group,
+  activeHref,
+}: {
+  group: AdminNavGroupView;
+  activeHref?: string;
+}) {
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const hasActive = group.items.some((item) => item.href === activeHref);
+
+  // On the icon rail a group becomes a menu that opens beside the icon.
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                className={rowClassName}
+                isActive={hasActive}
+                tooltip={group.label}
+              />
+            }
+          >
+            {group.icon}
+            <span>{group.label}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-56">
+            <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+            {group.items.map((item) =>
+              item.href ? (
+                <DropdownMenuItem
+                  key={item.label}
+                  render={<Link href={item.href} />}
+                >
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem key={item.label} disabled>
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    );
+  }
 
   return (
-    <Sidebar>
-      <SidebarHeader className="flex-row items-center gap-3 border-b border-sidebar-border px-6 py-5">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-white">
+    <Collapsible defaultOpen={hasActive} render={<SidebarMenuItem />}>
+      <CollapsibleTrigger
+        render={<SidebarMenuButton className={`${rowClassName} group/trigger`} />}
+      >
+        {group.icon}
+        <span>{group.label}</span>
+        <ChevronRight className="ml-auto transition-transform group-data-panel-open/trigger:rotate-90" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SidebarMenuSub className="mt-1 mb-2">
+          {group.items.map((item) => (
+            <SidebarMenuSubItem key={item.label}>
+              {item.href ? (
+                <SidebarMenuSubButton
+                  isActive={item.href === activeHref}
+                  render={
+                    <Link
+                      href={item.href}
+                      aria-current={item.href === activeHref ? "page" : undefined}
+                      onClick={() => setOpenMobile(false)}
+                    />
+                  }
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </SidebarMenuSubButton>
+              ) : (
+                <SidebarMenuSubButton
+                  aria-disabled="true"
+                  title="Not available yet"
+                  className="cursor-not-allowed text-sidebar-foreground/50"
+                  render={<span />}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </SidebarMenuSubButton>
+              )}
+            </SidebarMenuSubItem>
+          ))}
+        </SidebarMenuSub>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+export function AdminSidebar({ nav }: AdminSidebarProps) {
+  const pathname = usePathname();
+  const activeHref = findActiveHref(nav, pathname);
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-16 flex-row items-center gap-3 border-b border-sidebar-border px-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white">
           <GraduationCap className="size-5 text-sidebar" />
         </div>
-        <div className="flex flex-col">
-          <span className="text-base leading-tight font-bold text-white">
-            EdX Admin
-          </span>
-          <span className="text-[10px] text-blue-200">v2.0</span>
-        </div>
+        <span className="text-base font-bold text-white group-data-[collapsible=icon]:hidden">
+          EdX Admin
+        </span>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0 py-2">
-        {adminNav.map((group) => (
-          <SidebarGroup key={group.label} className="py-1 pr-2 pl-0">
-            <SidebarGroupLabel className="h-7 px-4 text-[10px] font-bold tracking-widest text-blue-300 uppercase">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.label}>
-                    {item.href ? (
-                      <SidebarMenuButton
-                        className={itemClassName}
-                        isActive={isActive(pathname, item.href)}
-                        render={
-                          <Link
-                            href={item.href}
-                            onClick={() => setOpenMobile(false)}
-                          />
-                        }
-                      >
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    ) : (
-                      <SidebarMenuButton className={itemClassName} disabled>
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    )}
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+      <SidebarContent className="px-3 py-3 group-data-[collapsible=icon]:px-0">
+        <SidebarMenu className="gap-0.5">
+          {nav.map((entry) =>
+            isGroup(entry) ? (
+              <NavGroup key={entry.label} group={entry} activeHref={activeHref} />
+            ) : (
+              <NavLink
+                key={entry.label}
+                item={entry}
+                active={entry.href === activeHref}
+              />
+            ),
+          )}
+        </SidebarMenu>
       </SidebarContent>
-
-      <SidebarFooter className="flex-row items-center gap-3 border-t border-sidebar-border p-4">
-        <Avatar>
-          {user.image && <AvatarImage src={user.image} alt="" />}
-          <AvatarFallback className="bg-white/15 text-xs text-white">
-            {user.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold text-white">
-            {user.name}
-          </p>
-          <p className="truncate text-[10px] text-blue-200 capitalize">
-            {user.role}
-          </p>
-        </div>
-        <form action={logout}>
-          <button
-            type="submit"
-            aria-label="Sign out"
-            className="rounded-md p-1.5 text-white/50 transition-colors hover:bg-sidebar-accent hover:text-white"
-          >
-            <LogOut className="size-4" />
-          </button>
-        </form>
-      </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }
