@@ -5,15 +5,18 @@ import { Ban, CircleCheck, Pause } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { EmptyState } from "@/components/admin/empty-state";
 import { EnrolmentStatusBadge, ProgressCell } from "@/components/admin/enrolment-table";
+import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { PageHeader } from "@/components/admin/page-header";
 import { UserForm } from "@/components/admin/user-form";
 import { UserStatusBadge } from "@/components/admin/user-status-badge";
 import { setUserStatus } from "@/actions/user";
+import { money } from "@/lib/order-display";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
 import { firstParam, type SearchParams } from "@/lib/table-params";
 import { listActivity } from "@/services/activity";
 import { manageableCoursesWhere } from "@/services/course-access";
 import { listEnrolments } from "@/services/learners";
+import { listUserOrders } from "@/services/order-admin";
 import { can, getUserDetail, listRoleOptions, requirePermission } from "@/services/user";
 
 export const metadata: Metadata = { title: "User" };
@@ -43,6 +46,9 @@ export default async function UserDetailPage({
   const learning = can(viewer, "enrolment.view")
     ? await listEnrolments({ userId: user.id, page: 1, pageSize: 5, sort: "activity", order: "desc" }, manageableCoursesWhere(viewer))
     : null;
+
+  // Orders this user placed; needs order.view.
+  const orders = can(viewer, "order.view") ? await listUserOrders(user.id, 5) : null;
 
   const isSelf = viewer.id === user.id;
   const fields = { id: String(user.id) };
@@ -156,6 +162,38 @@ export default async function UserDetailPage({
                   <span className="min-w-0 flex-1 font-medium">{enrolment.course.title}</span>
                   <EnrolmentStatusBadge status={enrolment.status} />
                   <ProgressCell percent={enrolment.progressPercent} done={enrolment.lessonsDone} total={enrolment.lessonsTotal} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {orders && (
+        <section aria-labelledby="orders" className="mt-6 rounded-xl border bg-white">
+          <div className="flex items-center justify-between gap-3 p-4 sm:px-6">
+            <h2 id="orders" className="text-base font-bold text-slate-900">Orders</h2>
+            {orders.total > 0 && (
+              <Link href={`/admin/orders?user=${user.id}`} className="text-sm font-medium text-blue-700 hover:underline">
+                View all {orders.total}
+              </Link>
+            )}
+          </div>
+          {orders.rows.length === 0 ? (
+            <EmptyState title="No orders" description="This user has not bought a course." />
+          ) : (
+            <ul className="divide-y border-t">
+              {orders.rows.map((order) => (
+                <li key={order.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 text-sm sm:px-6">
+                  <span className="min-w-0 flex-1">
+                    <Link href={`/admin/orders/${order.id}`} className="font-mono text-xs font-medium text-blue-700 hover:underline">
+                      {order.orderNumber}
+                    </Link>
+                    <span className="block truncate text-slate-600">{order.courses[0]}{order.courses.length > 1 ? ` +${order.courses.length - 1}` : ""}</span>
+                  </span>
+                  <span className="text-xs text-slate-500">{formatDate(order.createdAt)}</span>
+                  <OrderStatusBadge status={order.status} />
+                  <span className="w-16 text-right font-medium tabular-nums">{money(order.total)}</span>
                 </li>
               ))}
             </ul>

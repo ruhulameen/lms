@@ -78,6 +78,17 @@ export const permissionGroups = [
       { key: "certificate.manage", label: "Manage certificates", description: "Issue and revoke certificates" },
     ],
   },
+  {
+    key: "commerce",
+    label: "Commerce",
+    permissions: [
+      { key: "order.view", label: "View orders", description: "See orders, their payments, refunds and timeline" },
+      { key: "order.manage", label: "Manage orders", description: "Add staff notes and cancel pending orders" },
+      { key: "order.refund", label: "Refund orders", description: "Refund a whole order or single courses in it" },
+      { key: "coupon.view", label: "View coupons", description: "See coupons and where they were used" },
+      { key: "coupon.manage", label: "Manage coupons", description: "Create, edit, switch off and delete coupons" },
+    ],
+  },
 ] as const;
 
 // Granted to the instructor role the first time each permission is seeded;

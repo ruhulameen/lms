@@ -156,8 +156,8 @@ export async function signUp(
     throw error;
   }
 
-  // Self sign-up always creates a student.
-  redirect(panelHome("student"));
+  // Self sign-up always creates a student; a page that sent the visitor here (checkout) is returned to.
+  redirect(safeReturnPath(formData.get("next")) ?? panelHome("student"));
 }
 
 export async function logout() {

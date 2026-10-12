@@ -7,11 +7,12 @@ import { AuthField } from "@/components/auth/auth-field";
 
 const initialState: AuthState = {};
 
-export function SignUpForm() {
+export function SignUpForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(signUp, initialState);
 
   return (
     <form action={formAction} className="space-y-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <AuthField
         key={`name-${state.name}`}
         name="name"

@@ -1,7 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { formatDateInput, type DateRange } from "@/lib/date-range";
+import { isPaidStatus, orderStatuses, toPence, toPounds } from "@/lib/commerce";
 import { listActivity } from "@/services/activity";
+import { getOrderSummary } from "@/services/order-admin";
 
 function postStatusCount(rows: { status: string; _count: { _all: number } }[], status: string) {
   return rows.find((r) => r.status === status)?._count._all ?? 0;
@@ -106,5 +108,48 @@ export async function getDashboard(
       certificates: certificateCount,
       pendingReviews,
     },
+  };
+}
+
+// Commerce numbers for the admin dashboard: call only after order.view is
+// checked. All of it is about orders PLACED in the range (by creation date):
+// - revenue = paid orders' totals minus what has been refunded on them;
+// - paid orders = orders that are paid, partially refunded or refunded;
+// - average order value = gross paid total / paid orders (before refunds);
+// - refunds = refunded totals of those orders;
+// - revenue by day = the same revenue, per day the order was placed.
+export async function getCommerceDashboard(range: DateRange) {
+  const [summary, paidOrders, latest] = await Promise.all([
+    getOrderSummary({ from: range.from, to: range.to }),
+    db.order.findMany({
+      where: { createdAt: { gte: range.from, lt: range.to }, status: { in: orderStatuses.filter(isPaidStatus) } },
+      select: { createdAt: true, total: true, refundedTotal: true },
+    }),
+    db.order.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 5,
+      select: { id: true, orderNumber: true, status: true, total: true, createdAt: true, user: { select: { name: true } } },
+    }),
+  ]);
+
+  const perDay = new Map<string, number>();
+  for (let i = 0; i < range.days; i++) {
+    perDay.set(formatDateInput(new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate() + i)), 0);
+  }
+  for (const order of paidOrders) {
+    const key = formatDateInput(order.createdAt);
+    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + toPence(Number(order.total)) - toPence(Number(order.refundedTotal)));
+  }
+
+  const grossPence = toPence(summary.paidTotal);
+  const refundedPence = toPence(summary.refundedTotal);
+  return {
+    paidOrders: summary.paidOrders,
+    revenue: toPounds(grossPence - refundedPence),
+    refunds: summary.refundedTotal,
+    averageOrderValue: summary.paidOrders === 0 ? 0 : toPounds(Math.round(grossPence / summary.paidOrders)),
+    // Pounds per day, in `count` so the existing bar chart can draw it.
+    revenuePerDay: [...perDay].map(([date, pence]) => ({ date, count: toPounds(pence) })),
+    latestOrders: latest.map((o) => ({ id: o.id, orderNumber: o.orderNumber, status: o.status, total: Number(o.total), createdAt: o.createdAt, learner: o.user.name })),
   };
 }

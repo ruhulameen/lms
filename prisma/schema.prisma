@@ -46,6 +46,11 @@ model User {
   quizAttempts        QuizAttempt[]
   certificates        Certificate[]      @relation("CertificateOwner")
   revokedCertificates Certificate[]      @relation("CertificateRevoker")
+  orders              Order[]
+  orderEvents         OrderEvent[]
+  createdRefunds      Refund[]
+  createdCoupons      Coupon[]
+  couponRedemptions   CouponRedemption[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -412,14 +417,15 @@ enum QuestionType {
 }
 
 model CourseCategory {
-  id          Int      @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   name        String
-  slug        String   @unique
-  description String?  @db.Text
-  sortOrder   Int      @default(0)
+  slug        String           @unique
+  description String?          @db.Text
+  sortOrder   Int              @default(0)
   courses     Course[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  coupons     CouponCategory[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([sortOrder])
   @@map("course_category")
@@ -490,6 +496,8 @@ model Course {
   enrolments       Enrolment[]
   reviews          CourseReview[]
   certificates     Certificate[]
+  orderItems       OrderItem[]
+  coupons          CouponCourse[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -583,6 +591,7 @@ model Enrolment {
   completedAt     DateTime?
   lastLesson      Lesson?          @relation("EnrolmentLastLesson", fields: [lastLessonId], references: [id], onDelete: SetNull)
   lastLessonId    Int?
+  orderItems      OrderItem[]
   assignedBy      User?            @relation("EnrolmentAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
   assignedById    Int?
   // Cached completed lessons over published lessons, 0-100.
@@ -724,4 +733,300 @@ model Certificate {
   @@index([courseId])
   @@index([revokedById])
   @@map("certificate")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5: Commerce
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum PaymentProvider {
+  STRIPE
+  // A total of 0 after a coupon: nothing is charged.
+  FREE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum OrderEventType {
+  CREATED
+  PAYMENT_STARTED
+  PAID
+  ENROLLED
+  FAILED
+  CANCELLED
+  EXPIRED
+  COUPON_RELEASED
+  REFUND_REQUESTED
+  REFUNDED
+  NOTE
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+// Orders and everything under them are kept for the books: no cascade from a
+// user or a course. Money is in pounds (Decimal 10,2); the rules in
+// src/lib/commerce.ts work in whole pence.
+model Order {
+  id                      Int               @id @default(autoincrement())
+  // ORD-YYYYMMDD-XXXXXX, see generateOrderNumber in src/lib/commerce.ts.
+  orderNumber             String            @unique @db.VarChar(32)
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId                  Int
+  status                  OrderStatus       @default(PENDING)
+  currency                String            @default("GBP") @db.VarChar(3)
+  // Sum of the line prices, the coupon discount, and what is paid (subtotal - discountTotal).
+  subtotal                Decimal           @db.Decimal(10, 2)
+  discountTotal           Decimal           @default(0) @db.Decimal(10, 2)
+  total                   Decimal           @db.Decimal(10, 2)
+  refundedTotal           Decimal           @default(0) @db.Decimal(10, 2)
+  coupon                  Coupon?           @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  couponId                Int?
+  // Copied so the order still shows the code if the coupon is deleted.
+  couponCode              String?           @db.VarChar(64)
+  // Billing details, as asked for by the checkout's first step.
+  customerType            CustomerType      @default(INDIVIDUAL)
+  billingFirstName        String
+  billingLastName         String
+  billingCompany          String?
+  billingAddressLine1     String
+  billingAddressLine2     String?
+  billingCity             String?
+  billingPostcode         String            @db.VarChar(20)
+  // ISO 3166-1 alpha-2.
+  billingCountry          String            @default("GB") @db.VarChar(2)
+  billingPhone            String?           @db.VarChar(40)
+  // The buyer's address when the order was placed.
+  email                   String
+  stripeCheckoutSessionId String?           @unique @db.VarChar(255)
+  stripePaymentIntentId   String?           @unique @db.VarChar(255)
+  paidAt                  DateTime?
+  cancelledAt             DateTime?
+  // A pending order past this time is treated as expired (cancelled by the sweep).
+  expiresAt               DateTime?
+  items                   OrderItem[]
+  payments                Payment[]
+  refunds                 Refund[]
+  events                  OrderEvent[]
+  redemption              CouponRedemption?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, expiresAt])
+  @@index([couponId])
+  @@index([createdAt])
+  @@map("order")
+}
+
+// One line per course, copied at purchase time. The course is restricted from
+// deletion (deleteCourse reports it as "learner records").
+model OrderItem {
+  id          Int          @id @default(autoincrement())
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId     Int
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseId    Int
+  courseTitle String
+  // Price when ordered, the coupon's share of it, and unitPrice - discount.
+  unitPrice   Decimal      @db.Decimal(10, 2)
+  discount    Decimal      @default(0) @db.Decimal(10, 2)
+  total       Decimal      @db.Decimal(10, 2)
+  refundedAt  DateTime?
+  // The enrolment fulfilOrder created or reactivated.
+  enrolment   Enrolment?   @relation(fields: [enrolmentId], references: [id], onDelete: SetNull)
+  enrolmentId Int?
+  refundItems RefundItem[]
+  createdAt   DateTime     @default(now())
+
+  @@unique([orderId, courseId])
+  @@index([courseId])
+  @@index([enrolmentId])
+  @@map("order_item")
+}
+
+// A payment attempt. A retried pending order gets a new row (new Stripe session).
+model Payment {
+  id                      Int             @id @default(autoincrement())
+  order                   Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId                 Int
+  provider                PaymentProvider
+  status                  PaymentStatus   @default(PENDING)
+  amount                  Decimal         @db.Decimal(10, 2)
+  currency                String          @default("GBP") @db.VarChar(3)
+  stripeCheckoutSessionId String?         @unique @db.VarChar(255)
+  stripePaymentIntentId   String?         @unique @db.VarChar(255)
+  stripeChargeId          String?         @db.VarChar(255)
+  cardBrand               String?         @db.VarChar(40)
+  cardLast4               String?         @db.VarChar(4)
+  receiptUrl              String?         @db.Text
+  failureMessage          String?         @db.Text
+  paidAt                  DateTime?
+  refunds                 Refund[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([orderId])
+  @@map("payment")
+}
+
+model Refund {
+  id             Int          @id @default(autoincrement())
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId        Int
+  payment        Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  paymentId      Int
+  amount         Decimal      @db.Decimal(10, 2)
+  reason         String?      @db.Text
+  stripeRefundId String?      @unique @db.VarChar(255)
+  status         RefundStatus @default(PENDING)
+  failureMessage String?      @db.Text
+  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById    Int?
+  items          RefundItem[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([createdById])
+  @@map("refund")
+}
+
+// The order lines a refund covered, with the amount returned for each.
+model RefundItem {
+  refund      Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  refundId    Int
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  orderItemId Int
+  amount      Decimal   @db.Decimal(10, 2)
+
+  @@id([refundId, orderItemId])
+  @@index([orderItemId])
+  @@map("refund_item")
+}
+
+// The order's timeline, oldest first.
+model OrderEvent {
+  id        Int            @id @default(autoincrement())
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId   Int
+  type      OrderEventType
+  message   String         @db.Text
+  actor     User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId   Int?
+  data      Json?
+  createdAt DateTime       @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([actorId])
+  @@map("order_event")
+}
+
+// Stripe event ids already handled: inserting the id first (unique) makes the
+// webhook idempotent.
+model ProcessedStripeEvent {
+  id          String   @id @db.VarChar(255)
+  type        String   @db.VarChar(100)
+  processedAt DateTime @default(now())
+
+  @@index([processedAt])
+  @@map("processed_stripe_event")
+}
+
+// Codes are stored upper-case. `value` is a percentage (0-100) or an amount in
+// pounds, by discountType. Empty course and category lists mean no restriction.
+model Coupon {
+  id           Int                @id @default(autoincrement())
+  code         String             @unique @db.VarChar(64)
+  description  String?
+  internalNote String?            @db.Text
+  discountType CouponDiscountType
+  value        Decimal            @db.Decimal(10, 2)
+  active       Boolean            @default(true)
+  startsAt     DateTime?
+  expiresAt    DateTime?
+  // Total uses across everyone / per learner; null is unlimited.
+  usageLimit   Int?
+  perUserLimit Int?
+  minSpend     Decimal?           @db.Decimal(10, 2)
+  courses      CouponCourse[]
+  categories   CouponCategory[]
+  redemptions  CouponRedemption[]
+  orders       Order[]
+  createdBy    User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById  Int?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([createdById])
+  @@map("coupon")
+}
+
+model CouponCourse {
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId Int
+
+  @@id([couponId, courseId])
+  @@index([courseId])
+  @@map("coupon_course")
+}
+
+model CouponCategory {
+  coupon     Coupon         @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId   Int
+  category   CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId Int
+
+  @@id([couponId, categoryId])
+  @@index([categoryId])
+  @@map("coupon_category")
+}
+
+// A use of a coupon, taken when the order is placed. releasedAt is set when the
+// order fails, is cancelled or expires: only rows with releasedAt null count.
+model CouponRedemption {
+  id         Int       @id @default(autoincrement())
+  coupon     Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  couponId   Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId     Int
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId    Int       @unique
+  releasedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([couponId, releasedAt])
+  @@index([userId, couponId, releasedAt])
+  @@map("coupon_redemption")
 }

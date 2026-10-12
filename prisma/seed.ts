@@ -2,6 +2,7 @@ import "dotenv/config";
 import { auth } from "../src/lib/auth";
 import type { Prisma } from "../src/generated/prisma/client";
 import { backfillCertificateRecords } from "../src/lib/certificate-issue";
+import { calculateCouponDiscount, priceOrder, toPence, toPounds } from "../src/lib/commerce";
 import { db } from "../src/lib/db";
 import { allPermissions, defaultInstructorPermissions } from "../src/lib/permissions";
 import { blocksToDocument, type PostBlock } from "../src/lib/rich-text";
@@ -537,6 +538,210 @@ async function seedCourses() {
   );
 }
 
+// Development content: coupons that exercise every rule (see src/lib/commerce.ts).
+// Create-only by code, so edits made since stay. Skipped in production.
+type SampleCoupon = {
+  code: string;
+  description: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  value: number;
+  usageLimit?: number;
+  perUserLimit?: number;
+  minSpend?: number;
+  // Days from now; negative is in the past.
+  startsInDays?: number;
+  expiresInDays?: number;
+  courses?: string[];
+  categories?: string[];
+};
+
+const sampleCoupons: SampleCoupon[] = [
+  { code: "WELCOME10", description: "10% off, once per learner", discountType: "PERCENTAGE", value: 10, perUserLimit: 1 },
+  { code: "SAVE5", description: "£5 off orders of £20 or more", discountType: "FIXED", value: 5, minSpend: 20 },
+  {
+    code: "HEALTHCARE20",
+    description: "20% off Healthcare courses and the Excel course",
+    discountType: "PERCENTAGE",
+    value: 20,
+    categories: ["healthcare"],
+    courses: ["microsoft-excel-complete"],
+  },
+  { code: "EXPIRED50", description: "50% off, ended a month ago", discountType: "PERCENTAGE", value: 50, startsInDays: -60, expiresInDays: -30 },
+  { code: "LAUNCH100", description: "100% off for testing free orders: 5 uses, once each", discountType: "PERCENTAGE", value: 100, usageLimit: 5, perUserLimit: 1 },
+];
+
+async function seedCoupons() {
+  if (process.env.NODE_ENV === "production") {
+    console.log("Skipped sample coupons in production");
+    return;
+  }
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  const admin = adminEmail ? await db.user.findUnique({ where: { email: adminEmail }, select: { id: true } }) : null;
+  const day = 24 * 60 * 60 * 1000;
+  let created = 0;
+  for (const sample of sampleCoupons) {
+    if (await db.coupon.findUnique({ where: { code: sample.code }, select: { id: true } })) continue;
+    const courses = await db.course.findMany({ where: { slug: { in: sample.courses ?? [] } }, select: { id: true } });
+    const categories = await db.courseCategory.findMany({ where: { slug: { in: sample.categories ?? [] } }, select: { id: true } });
+    await db.coupon.create({
+      data: {
+        code: sample.code,
+        description: sample.description,
+        internalNote: "Sample coupon from the development seed.",
+        discountType: sample.discountType,
+        value: sample.value,
+        usageLimit: sample.usageLimit ?? null,
+        perUserLimit: sample.perUserLimit ?? null,
+        minSpend: sample.minSpend ?? null,
+        startsAt: sample.startsInDays === undefined ? null : new Date(Date.now() + sample.startsInDays * day),
+        expiresAt: sample.expiresInDays === undefined ? null : new Date(Date.now() + sample.expiresInDays * day),
+        createdById: admin?.id ?? null,
+        courses: { create: courses.map((c) => ({ courseId: c.id })) },
+        categories: { create: categories.map((c) => ({ categoryId: c.id })) },
+      },
+    });
+    created++;
+  }
+  console.log(`Seeded sample coupons: ${created} created, ${sampleCoupons.length - created} already present`);
+}
+
+// Development content: a handful of orders for the sample learners, so the
+// order and coupon screens are not empty. They are marked as samples (order
+// numbers contain SAMP, the first timeline entry says so) and carry no Stripe
+// ids, so nothing mistakes them for real payments. Create-only by order number
+// suffix. Run after seedCourses and seedCoupons. Skipped in production.
+type SampleOrder = {
+  // Last part of the order number, e.g. SAMPA2.
+  key: string;
+  learner: string;
+  courses: string[];
+  status: "PAID" | "PENDING" | "FAILED" | "CANCELLED";
+  coupon?: string;
+  // How long ago it was placed.
+  minutesAgo: number;
+  card?: { brand: string; last4: string };
+  failure?: string;
+};
+
+const sampleOrders: SampleOrder[] = [
+  { key: "SAMPA2", learner: "erick.guerrero@example.com", courses: ["microsoft-excel-complete"], status: "PAID", minutesAgo: 12 * 1440, card: { brand: "visa", last4: "4242" } },
+  { key: "SAMPA3", learner: "zainab.rizwan@example.com", courses: ["care-certificate-standards", "medical-administration"], status: "PAID", coupon: "WELCOME10", minutesAgo: 8 * 1440 + 200, card: { brand: "mastercard", last4: "4444" } },
+  { key: "SAMPA4", learner: "james.carter@example.com", courses: ["hr-audit"], status: "PAID", minutesAgo: 3 * 1440 + 90, card: { brand: "visa", last4: "1881" } },
+  { key: "SAMPA5", learner: "sarah.johnson@example.com", courses: ["leadership-management-level-5"], status: "PENDING", minutesAgo: 25 },
+  { key: "SAMPA6", learner: "erick.guerrero@example.com", courses: ["business-administration-level-3"], status: "FAILED", minutesAgo: 5 * 1440, card: { brand: "visa", last4: "0002" }, failure: "Sample failure: the card was declined." },
+  { key: "SAMPA7", learner: "james.carter@example.com", courses: ["construction-health-safety"], status: "CANCELLED", coupon: "SAVE5", minutesAgo: 2 * 1440 + 400 },
+];
+
+async function seedOrders() {
+  if (process.env.NODE_ENV === "production") {
+    console.log("Skipped sample orders in production");
+    return;
+  }
+  const admin = process.env.SEED_ADMIN_EMAIL
+    ? await db.user.findUnique({ where: { email: process.env.SEED_ADMIN_EMAIL }, select: { id: true, name: true } })
+    : null;
+  let created = 0;
+  for (const sample of sampleOrders) {
+    if (await db.order.findFirst({ where: { orderNumber: { endsWith: `-${sample.key}` } }, select: { id: true } })) continue;
+    const user = await db.user.findUnique({ where: { email: sample.learner }, select: { id: true, name: true, email: true } });
+    const courses = await db.course.findMany({ where: { slug: { in: sample.courses } }, select: { id: true, title: true, price: true, categoryId: true } });
+    const coupon = sample.coupon ? await db.coupon.findUnique({ where: { code: sample.coupon }, select: { id: true, discountType: true, value: true } }) : null;
+    if (!user || courses.length !== sample.courses.length || (sample.coupon && !coupon)) continue;
+
+    const lines = courses.map((c) => ({ courseId: c.id, categoryId: c.categoryId, pricePence: toPence(Number(c.price)) }));
+    if (lines.some((l) => l.pricePence <= 0)) continue;
+    const pricing = priceOrder(lines, coupon ? calculateCouponDiscount({ discountType: coupon.discountType, value: Number(coupon.value), courseIds: [], categoryIds: [] }, lines) : undefined);
+    const placedAt = new Date(Date.now() - sample.minutesAgo * 60_000);
+    const at = (minutesAfter: number) => new Date(placedAt.getTime() + minutesAfter * 60_000);
+    const [firstName, ...rest] = user.name.split(" ");
+    const paid = sample.status === "PAID";
+
+    const order = await db.order.create({
+      data: {
+        orderNumber: `ORD-${placedAt.toISOString().slice(0, 10).replaceAll("-", "")}-${sample.key}`,
+        userId: user.id,
+        status: sample.status,
+        subtotal: toPounds(pricing.subtotalPence),
+        discountTotal: toPounds(pricing.discountPence),
+        total: toPounds(pricing.totalPence),
+        couponId: coupon?.id ?? null,
+        couponCode: sample.coupon ?? null,
+        billingFirstName: firstName,
+        billingLastName: rest.join(" ") || firstName,
+        billingAddressLine1: "1 Sample Street",
+        billingCity: "London",
+        billingPostcode: "SW1A 1AA",
+        email: user.email,
+        paidAt: paid ? at(2) : null,
+        cancelledAt: sample.status === "CANCELLED" ? at(90) : null,
+        createdAt: placedAt,
+        items: {
+          create: courses.map((course, i) => ({
+            courseId: course.id,
+            courseTitle: course.title,
+            unitPrice: toPounds(pricing.lines[i].pricePence),
+            discount: toPounds(pricing.lines[i].discountPence),
+            total: toPounds(pricing.lines[i].totalPence),
+          })),
+        },
+      },
+      select: { id: true, items: { select: { id: true, courseId: true } } },
+    });
+
+    const events: { type: "CREATED" | "PAYMENT_STARTED" | "PAID" | "ENROLLED" | "FAILED" | "CANCELLED" | "COUPON_RELEASED"; message: string; minutes: number; actorId?: number | null }[] = [
+      { type: "CREATED", message: "Order placed. This is a sample order from the development seed, not a real payment.", minutes: 0 },
+    ];
+    if (sample.status !== "CANCELLED") {
+      events.push({ type: "PAYMENT_STARTED", message: "Sample payment started.", minutes: 1 });
+    }
+    if (paid) events.push({ type: "PAID", message: `Sample payment of £${toPounds(pricing.totalPence).toFixed(2)} recorded.`, minutes: 2 });
+    if (sample.status === "FAILED") events.push({ type: "FAILED", message: sample.failure ?? "Sample payment failed.", minutes: 3 });
+    if (sample.status === "CANCELLED") {
+      events.push({ type: "CANCELLED", message: `Cancelled by ${admin?.name ?? "staff"}.`, minutes: 90, actorId: admin?.id });
+    }
+    if (coupon && sample.status === "CANCELLED") events.push({ type: "COUPON_RELEASED", message: `Coupon use given back (${sample.coupon}).`, minutes: 90, actorId: admin?.id });
+
+    if (paid) {
+      // Access: reuse an enrolment the seed already made, else create an order-sourced one.
+      const enrolledTitles: string[] = [];
+      for (const item of order.items) {
+        const existing = await db.enrolment.findUnique({ where: { userId_courseId: { userId: user.id, courseId: item.courseId } }, select: { id: true } });
+        const enrolment = existing ?? (await db.enrolment.create({ data: { userId: user.id, courseId: item.courseId, source: "ORDER", enrolledAt: at(2) }, select: { id: true } }));
+        await db.orderItem.update({ where: { id: item.id }, data: { enrolmentId: enrolment.id } });
+        enrolledTitles.push(courses.find((c) => c.id === item.courseId)!.title);
+      }
+      events.push({ type: "ENROLLED", message: `Learner enrolled in ${enrolledTitles.join(", ")}.`, minutes: 2 });
+    }
+
+    // The payment attempt: no Stripe ids, so it can never be mistaken for a real one.
+    if (sample.status !== "CANCELLED") {
+      await db.payment.create({
+        data: {
+          orderId: order.id,
+          provider: "STRIPE",
+          status: paid ? "SUCCEEDED" : sample.status === "FAILED" ? "FAILED" : "PENDING",
+          amount: toPounds(pricing.totalPence),
+          cardBrand: sample.card?.brand ?? null,
+          cardLast4: sample.card?.last4 ?? null,
+          failureMessage: sample.failure ?? null,
+          paidAt: paid ? at(2) : null,
+          createdAt: at(1),
+        },
+      });
+    }
+    if (coupon) {
+      await db.couponRedemption.create({
+        data: { couponId: coupon.id, userId: user.id, orderId: order.id, createdAt: placedAt, releasedAt: sample.status === "CANCELLED" ? at(90) : null },
+      });
+    }
+    for (const event of events) {
+      await db.orderEvent.create({ data: { orderId: order.id, type: event.type, message: event.message, actorId: event.actorId ?? null, createdAt: at(event.minutes) } });
+    }
+    created++;
+  }
+  console.log(`Seeded sample orders: ${created} created, ${sampleOrders.length - created} already present or skipped`);
+}
+
 async function main() {
   for (const role of roles) {
     await db.role.upsert({
@@ -551,6 +756,8 @@ async function main() {
   await seedAdmin();
   await seedBlog();
   await seedCourses();
+  await seedCoupons();
+  await seedOrders();
 }
 
 main()

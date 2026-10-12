@@ -4,6 +4,7 @@ import {
   BookOpen,
   Gift,
   LayoutDashboard,
+  Receipt,
   type LucideIcon,
   Settings,
   UserRound,
@@ -18,6 +19,7 @@ export type StudentNavItem = {
 export const studentNav: StudentNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Courses", href: "/my-courses", icon: BookOpen },
+  { label: "My Orders", href: "/my-orders", icon: Receipt },
   { label: "My Certificates", href: "/my-certificates", icon: Award },
   { label: "My Offers", href: "/my-offers", icon: Gift },
   { label: "Profile", href: "/profile", icon: UserRound },

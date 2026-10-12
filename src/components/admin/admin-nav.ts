@@ -3,7 +3,6 @@ import {
   Award,
   BookOpen,
   Bot,
-  Box,
   ChartLine,
   ChartPie,
   CirclePlus,
@@ -34,12 +33,10 @@ import {
   Tags,
   Ticket,
   TrendingUp,
-  Undo2,
   UserCheck,
   UserCog,
   UserPen,
   Users,
-  Wallet,
 } from "lucide-react";
 import { createElement, type ReactNode } from "react";
 import type { PermissionKey } from "@/lib/permissions";
@@ -90,12 +87,8 @@ export const adminNav: AdminNavEntry[] = [
     label: "Commerce",
     icon: ShoppingCart,
     items: [
-      { label: "Orders", icon: ShoppingCart },
-      { label: "Products", icon: Box },
-      { label: "Bundles", icon: Layers },
-      { label: "Coupons", icon: Ticket },
-      { label: "Transactions", icon: Wallet },
-      { label: "Refunds", icon: Undo2 },
+      { label: "Orders", icon: ShoppingCart, href: "/admin/orders", permission: "order.view" },
+      { label: "Coupons", icon: Ticket, href: "/admin/coupons", permission: "coupon.view" },
     ],
   },
   {

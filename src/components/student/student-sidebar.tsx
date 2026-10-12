@@ -23,7 +23,8 @@ export function StudentSidebar({ user }: StudentSidebarProps) {
         className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"
       >
         {studentNav.map((item) => {
-          const active = pathname === item.href;
+          const active =
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
@@ -53,7 +54,8 @@ export function StudentSidebar({ user }: StudentSidebarProps) {
         </div>
         <nav aria-label="Student portal" className="space-y-1">
           {studentNav.map((item) => {
-            const active = pathname === item.href;
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}

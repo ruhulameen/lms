@@ -6,13 +6,15 @@ import { DateRangeFilter } from "@/components/admin/date-range-filter";
 import { ContentStatusBadge } from "@/components/admin/content-status-badge";
 import { EmptyState } from "@/components/admin/empty-state";
 import { PageHeader } from "@/components/admin/page-header";
+import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
 import { parseDateRange } from "@/lib/date-range";
 import { formatCount } from "@/lib/format";
+import { money } from "@/lib/order-display";
 import type { SearchParams } from "@/lib/table-params";
-import { getDashboard } from "@/services/dashboard";
+import { getCommerceDashboard, getDashboard } from "@/services/dashboard";
 import { can, requirePermission } from "@/services/user";
 
 export const metadata: Metadata = {
@@ -62,6 +64,7 @@ export default async function AdminDashboardPage({
     certificates: can(user, "certificate.view"),
     reviews: can(user, "review.moderate"),
   });
+  const sales = can(user, "order.view") ? await getCommerceDashboard(range) : null;
   const learning = data.learning;
   const showLearning =
     learning.courses !== null || learning.activeEnrolments !== null || learning.certificates !== null || learning.pendingReviews !== null;
@@ -157,6 +160,69 @@ export default async function AdminDashboardPage({
             )}
           </ul>
         </Card>
+      )}
+
+      {sales && (
+        <>
+          <Card title={`Sales (${range.label})`} className="mt-6">
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+              <li>
+                <p className="text-xs font-medium text-slate-500">Revenue</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.revenue)}</p>
+                <p className="text-xs text-slate-500">Paid minus refunded</p>
+              </li>
+              <li>
+                <p className="text-xs font-medium text-slate-500">Paid orders</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/orders" className="hover:underline">{formatCount(sales.paidOrders)}</Link>
+                </p>
+              </li>
+              <li>
+                <p className="text-xs font-medium text-slate-500">Average order value</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.averageOrderValue)}</p>
+                <p className="text-xs text-slate-500">Before refunds</p>
+              </li>
+              <li>
+                <p className="text-xs font-medium text-slate-500">Refunds</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.refunds)}</p>
+              </li>
+            </ul>
+            <div className="mt-5 border-t pt-4">
+              <p className="mb-2 text-xs font-medium text-slate-500">Revenue per day (by order date)</p>
+              {sales.paidOrders === 0 ? (
+                <EmptyState title="No paid orders in this period" description="Pick a longer range to see more." />
+              ) : (
+                <BarChart
+                  data={sales.revenuePerDay}
+                  label={`Revenue per day, ${range.label}: ${money(sales.revenue)} in total`}
+                  describe={(d) => `${d.date}: ${money(d.count)}`}
+                  formatPeak={(max) => `${money(max)} per day`}
+                />
+              )}
+            </div>
+          </Card>
+
+          <Card title="Latest orders" className="mt-6">
+            {sales.latestOrders.length === 0 ? (
+              <EmptyState title="No orders yet" />
+            ) : (
+              <ul className="divide-y">
+                {sales.latestOrders.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <Link href={`/admin/orders/${o.id}`} className="font-mono text-xs font-medium text-blue-700 hover:underline">{o.orderNumber}</Link>
+                      <span className="block truncate text-xs text-slate-500">{o.learner} - {formatDateTime(o.createdAt)}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="font-medium tabular-nums">{money(o.total)}</span>
+                      <OrderStatusBadge status={o.status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </>
       )}
 
       {(data.content.posts || data.content.media !== null) && (

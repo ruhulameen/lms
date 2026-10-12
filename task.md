@@ -1,6 +1,6 @@
 # Tasks
 
-Current phase: **Phase 4 — LMS** (all four stages built, uncommitted). Phases and the long view are in [roadmap.md](roadmap.md).
+Current phase: **Phase 5 — Commerce** (all three stages built and checked from the server and in the dev server's pages, not yet in a browser; uncommitted). Phases and the long view are in [roadmap.md](roadmap.md).
 
 Tick a task when it is built and checked in the browser. Add new tasks under the phase they belong to; move finished phases to the bottom.
 
@@ -38,74 +38,74 @@ Phase 4 decisions, made 2026-10-12 (the owner approved every recommendation):
 - The instructor panel is part of this phase (stage 4).
 - Course reviews by enrolled learners, shown after admin approval, are part of this phase.
 
+Phase 5 decisions, made 2026-10-13 (the owner approved every recommendation):
+
+- Subagents run on Sonnet.
+- Payments: Stripe, using Stripe's hosted payment page. Card details never touch this site.
+- Only single courses are sold. No bundles, memberships, digital products or vouchers. "Product" in the spec means a course; "order" means a course purchase.
+- One of each course per buyer; the cart has no quantities.
+- Only signed-in learners can check out; sign-up or login happens on the way and returns to checkout.
+- Checkout keeps the billing details step and drops "student details"; payment happens on Stripe's page.
+- Refunds: a whole order or single courses in it; the refunded course's access is removed. No typed-amount refunds.
+- Admin menu: Orders and Coupons only; payments and refunds are shown on each order.
+- Coupons: percentage or fixed amount; total usage limit, per-learner limit, start and use-before dates, minimum spend, chosen courses and/or categories; one coupon per order.
+
 Still open, later phases:
 
-- [ ] Payment provider (spec says Stripe) — needed for Phase 5.
 - [ ] Email provider — needed before production.
 
-## Phase 4 — LMS
+## Phase 5 — Commerce
 
-Spec §10 (courses), §11 (quizzes, certificates), §30 (course creation workflow).
+Spec §12. In the spec, "product" means a course and "order" means a course purchase: there is no separate product catalogue, the price stays on the course.
 
 ### How it fits together
 
-- **Structure:** a course has modules, a module has lessons, both in a fixed order the editor can rearrange by dragging (with keyboard buttons as well).
-- **Lesson content:** a lesson is one of video, text (the same rich text editor as posts), PDF/download, or quiz. Lessons can be marked as free preview.
-- **Publishing:** the same statuses and review rule as posts — draft, pending review, scheduled, published, archived; edit without publish permission means "submit for review".
-- **Price:** each course carries its price and an optional "was" price in pounds; a price of 0 is a free course. Orders, coupons and bundles arrive in Phase 5 and will reuse these fields.
-- **Enrolment:** a learner is enrolled in a course by joining a free course or by an admin assigning it. Enrolment is what unlocks the lessons; Phase 5 will create enrolments from paid orders.
-- **Progress:** a lesson is complete when its rule is met — video watched to the end (or most of it), text and PDF opened and marked done, quiz passed. Course progress is completed lessons over all lessons.
-- **Certificates:** issued automatically when every lesson is complete; each has an ID and a public verification page.
-- **Protected files:** lesson videos and downloads are not public; the server hands a short-lived link only to enrolled learners, staff and free-preview lessons.
-- **SEO:** courses get the same basic SEO fields as posts. Course schema (JSON-LD), sitemap and SEO checks stay in Phase 7.
-- **Sample data:** the courses from the design move into the development seed with a few modules and lessons; made-up student and review counts are replaced by real ones.
+- **Cart:** stays in a cookie, holds courses only. Courses the learner already owns and free courses are kept out of it; free courses are joined directly, as now.
+- **Order:** created when the learner presses pay, with a number, the buyer, billing details, one line per course (title and price copied at that moment), the coupon and discount, and the total in pounds. Prices include VAT; no tax is calculated.
+- **Payment:** the learner is sent to Stripe to pay and comes back to an order confirmation page. Stripe tells the site the result through a verified webhook; the order is marked paid only from that message, never from the return page alone.
+- **Enrolment:** a paid order enrols the learner in each course straight away (source "order"). An order whose total is 0 after a coupon completes without Stripe.
+- **Statuses:** pending, paid, failed, cancelled, refunded, partially refunded. "Processing" and "completed" from the spec are left out because a course is delivered the moment it is paid.
+- **Timeline:** every order keeps a dated history: created, payment started, paid, failed, refunded, notes added by staff.
+- **Coupons:** a code gives a percentage or a fixed amount off. Each coupon can have: a start date and a use-before date; a total usage limit (for example 50 uses); a per-learner limit (for example once each); a minimum spend; and a restriction to chosen courses and/or categories, in which case the discount applies only to matching courses in the cart. One coupon per order. A use is counted when the order is placed and given back if the payment fails or the order is cancelled, so a limit cannot be overshot.
+- **Refunds:** made by an admin from the order page and sent to Stripe; the learner loses access to the refunded course and the order shows as refunded or partially refunded.
+- **Receipts:** an order page the learner can print; Stripe sends its own payment receipt by email. Site emails stay console-only.
 
 ### Stage 1 — foundation (one agent)
 
-- [x] Schema and one migration: `Course`, `CourseCategory`, `CourseTag`, `CourseModule`, `Lesson`, `LessonResource`, `Enrolment`, `LessonProgress`, `CourseReview`, `Quiz`, `Question`, `QuizAttempt`, `Certificate`, plus `SeoData` extended to courses.
-- [x] Permissions added and seeded: `course.view|create|edit|delete|publish`, `course-taxonomy.manage`, `enrolment.view|manage`, `review.moderate`, `certificate.view|manage`.
-- [x] Private storage for lesson files and a helper that gives signed links only to people allowed to see the lesson.
-- [x] Public catalogue from the database: `/courses`, `/courses/<slug>`, home page sections and hot deals keep their design; the course page shows the real curriculum.
-- [x] Development seed with the sample courses, categories, modules and lessons.
+- [x] Schema and one migration: `Order`, `OrderItem`, `Payment`, `Refund`, `OrderEvent`, `Coupon` with its course and category links, `CouponRedemption`.
+- [x] Permissions added and seeded: `order.view|manage|refund`, `coupon.view|manage`.
+- [x] Pricing and coupon rules as pure functions: cart totals, which lines a coupon applies to, discount split per line, every reason a coupon is refused.
+- [x] Stripe set up: package, keys in `.env` and `.env.example`, one place that talks to Stripe.
+- [x] Cart brought in line: no quantities, owned and free courses kept out.
 
-### Stage 2a — course management in admin (parallel)
+### Stage 2a — checkout and payment (parallel)
 
-- [x] `/admin/courses`: list with search, status, category and instructor filters.
-- [x] Course editor: title, subtitle, descriptions, thumbnail, intro video, price, category, tags, level, language, duration, instructor, badge, SEO fields, status and schedule.
-- [x] Curriculum builder `/admin/courses/[id]/curriculum`: modules and lessons, add, rename, reorder by drag and by keyboard, move a lesson between modules, delete.
-- [x] Lesson editors for video, text and PDF/download, with file upload through the chunked uploader; free-preview switch.
-- [x] Course categories and tags.
-- [x] Preview a course and its lessons before publishing; duplicate a course.
+- [x] Cart page with coupon code entry and the discount shown per course.
+- [x] Checkout: sign-in on the way, billing details, order summary, pay.
+- [x] Order creation, Stripe payment page, verified webhook, enrolment on payment, coupon use counted and given back.
+- [x] Order confirmation page, failed and cancelled payment states, pay again for a pending order.
+- [x] Student panel: My Orders with printable receipts.
 
-### Stage 2b — learning side (parallel)
+### Stage 2b — orders and coupons in admin (parallel)
 
-- [x] Enrol in a free course from the course page; "Continue learning" when already enrolled.
-- [x] Course player `/learn/<course>/<lesson>`: lesson list with completion ticks, video / text / PDF views, previous and next, mark complete, resume where the learner left off.
-- [x] Progress stored per lesson and per course.
-- [x] Student panel on real data: dashboard, My Courses, My Certificates. Offers and notifications stay sample data until their modules exist.
-- [x] Learner reviews: rate and review a course once enrolled; shown publicly after approval.
+- [x] `/admin/orders`: list with search, status and date filters; order page with lines, buyer, billing details, payments, timeline and staff notes.
+- [x] `/admin/coupons`: list, create and edit with every limit above, switch on and off, usage count and the orders that used it.
+- [x] Commerce menu reduced to what exists.
 
-### Stage 3 — quizzes, certificates, learners (one agent)
+### Stage 3 — refunds and wrap-up (one agent)
 
-- [x] Quiz builder inside the curriculum: questions (multiple choice, multiple select, true/false), points, passing score, attempt limit, time limit, feedback text.
-- [x] Taking a quiz in the player: timer, submit, score, pass or fail, review of answers; attempts and answers stored.
-- [x] Certificates: issued on completion, certificate page with print/save, public verification URL, organisation name, logo and signature settings.
-- [x] Admin Learners: all learners, enrolments (assign and remove a course), progress per learner and per course, certificates (view, revoke), review moderation.
-- [x] Dashboard counts for courses, enrolments and completions; activity log entries for every Phase 4 action.
-
-### Stage 4 — instructor panel and wrap-up (one agent)
-
-- [x] `/instructor`: dashboard, my courses, the same course and curriculum editors limited to the instructor's own courses, submit for review, learners and progress of own courses.
-- [x] A few Vitest unit tests: progress calculation, completion rules, quiz scoring, certificate ID format.
+- [x] Refund a whole order or single courses from the order page; access removed; Stripe refund messages handled.
+- [x] Admin dashboard: revenue, orders and average order value. Instructor dashboard: sales of own courses.
+- [x] Activity log entries for every Phase 5 action.
+- [x] A few Vitest unit tests: coupon rules, discount split, order totals, status changes, refund plans.
 - [x] TypeScript, lint and tests pass; `roadmap.md` and this file updated.
 
-### Not in Phase 4
+### Not in Phase 5
 
-- Payments, orders, coupons, bundles, memberships (Phase 5).
-- Assignment and interactive lessons; matching, ordering and fill-in-the-blank questions; question bank and random questions.
-- Video transcoding or adaptive streaming.
-- Course schema (JSON-LD), sitemap and SEO checks (Phase 7); course analytics (Phase 8).
-- Compare-and-restore revisions for courses.
+- Bundles, memberships, digital products, vouchers, gifting and buying for other people.
+- Tax calculation, VAT invoices with numbering, multiple currencies.
+- Subscriptions and instalments; saved cards.
+- Marketing attribution on orders (Phase 6); commerce analytics and reports (Phase 8).
 
 ## Carried over from earlier phases
 
@@ -121,7 +121,18 @@ Spec §10 (courses), §11 (quizzes, certificates), §30 (course creation workflo
 - [ ] Add the production site address to the R2 bucket's CORS `AllowedOrigins` when deploying.
 - [ ] Post form: after a failed save, the canonical URL, noindex switch and schedule time may lose what was typed (untested).
 
+- [ ] Phase 5 browser check, by hand: pay with a Stripe test card and return to the order page, a declined card, coupon entry in the cart, pay again on a pending order, receipt print, the admin order page, a refund (whole order and one course; with `stripe listen` running for the webhook), the coupon form pickers and dates.
+- [ ] Schedule `sweepExpiredOrders` (no scheduled jobs exist yet); until then pending orders are only closed when someone opens or pays them.
+
 ## Done
+
+### Phase 4 — LMS (committed 2026-10-13)
+
+- Courses, modules and lessons (video, text, document, quiz) with the post-style publishing workflow; private R2 bucket for lesson files.
+- Enrolment (free self-enrol, admin assign), course player, progress, learner reviews with moderation.
+- Quizzes (single choice, multiple select, true/false), certificates with public verification, admin Learners screens.
+- Instructor panel limited to own courses.
+- 91 unit tests pass. Browser checks are listed under "Carried over".
 
 ### Phase 2 — Blog and media (committed 2026-10-12)
 

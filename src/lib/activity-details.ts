@@ -1,6 +1,10 @@
+import { formatPence } from "@/lib/commerce";
+
 // Turns an activity row's JSON details into a short readable line for the
 // actions the admin screens log; anything else falls back to key: value pairs.
 type Details = Record<string, unknown> | null;
+
+const pence = (value: unknown) => formatPence(Number(value) || 0);
 
 function list(value: unknown) {
   return Array.isArray(value) ? value.map(String).join(", ") : String(value ?? "");
@@ -137,6 +141,32 @@ export function describeActivity(action: string, raw: unknown): string {
       return `${d.learner}'s enrolment in ${d.course} is active again`;
     case "enrolment.cancel":
       return `${d.learner}'s enrolment in ${d.course} was cancelled`;
+    case "order.place":
+      return `Placed order ${d.orderNumber} for ${pence(d.totalPence)}${d.coupon ? ` with coupon ${d.coupon}` : ""}`;
+    case "order.paid":
+      return `Order ${d.orderNumber} paid (${pence(d.totalPence)})`;
+    case "order.fail":
+      return `Payment failed on order ${d.orderNumber}`;
+    case "order.cancel":
+      return `Order ${d.orderNumber} cancelled${d.reason === "expired" ? " (expired unpaid)" : d.reason === "superseded" ? " (replaced by a newer order)" : ""}`;
+    case "order.note":
+      return `Added a note to order ${d.orderNumber}`;
+    case "order.refund-request":
+      return `Requested a refund of ${pence(d.amountPence)} on order ${d.orderNumber}`;
+    case "order.refund":
+      return `Refunded ${pence(d.amountPence)} on order ${d.orderNumber}`;
+    case "order.refund-fail":
+      return `Refund of ${pence(d.amountPence)} on order ${d.orderNumber} failed${d.message ? `: ${d.message}` : ""}`;
+    case "coupon.create":
+      return `Created coupon ${d.code} (${d.discountType === "PERCENTAGE" ? `${d.value}% off` : `${formatPence(Math.round(Number(d.value) * 100))} off`})`;
+    case "coupon.update":
+      return `Updated coupon ${d.code}${d.previousCode ? ` (was ${d.previousCode})` : ""}${d.previousDiscount ? `, discount changed from ${String(d.previousDiscount).toLowerCase()}` : ""}`;
+    case "coupon.activate":
+      return `Switched coupon ${d.code} on`;
+    case "coupon.deactivate":
+      return `Switched coupon ${d.code} off`;
+    case "coupon.delete":
+      return `Deleted coupon ${d.code}`;
   }
 
   return Object.entries(d)

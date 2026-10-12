@@ -86,7 +86,11 @@ Courses, modules, lessons, quizzes, progress and certificates (§10, §11, §30)
 - Replaces the sample data in `src/services/course.ts`, `review.ts` and `student.ts`; makes the student panel real.
 - Instructor panel (`/instructor`).
 
-### Phase 5 — Commerce
+### Phase 5 — Commerce (built, uncommitted)
+
+Delivered: single courses sold through Stripe's hosted payment page with a verified webhook; cart with coupons (percentage or fixed, dates, limits, minimum spend, course and category restrictions); orders with a timeline, receipts, pay again, expiry; enrolment on payment; refunds of a whole order or chosen courses (access removed); admin Orders and Coupons screens; commerce numbers on the admin and instructor dashboards. Left out: bundles, memberships, digital products, vouchers, typed-amount refunds, tax and VAT invoices, guest checkout. The checklist and decisions are in [task.md](task.md).
+
+Original scope:
 
 Products, orders, payments, coupons, refunds, enrolment automation (§12).
 

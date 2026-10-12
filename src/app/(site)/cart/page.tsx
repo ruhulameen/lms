@@ -1,22 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { removeFromCart, updateCartQuantity } from "@/actions/cart";
+import { removeFromCart } from "@/actions/cart";
+import { CouponForm } from "@/components/site/coupon-form";
 import { CourseImage } from "@/components/site/course-card";
 import { categoryStyle } from "@/lib/category";
 import { formatCoursePrice } from "@/lib/course";
+import { formatPence } from "@/lib/commerce";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { getCart } from "@/services/cart";
+import { getPricedCart } from "@/services/cart";
 
 export const metadata: Metadata = {
   title: "Your cart",
 };
 
-const stepClassName =
-  "px-3 py-1.5 font-bold text-gray-600 transition hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent";
-
 export default async function CartPage() {
-  const cart = await getCart();
+  const cart = await getPricedCart();
 
   return (
     <>
@@ -45,85 +44,80 @@ export default async function CartPage() {
         ) : (
           <div className="grid gap-8 lg:grid-cols-3">
             <ul className="space-y-4 lg:col-span-2">
-              {cart.items.map(({ course, quantity, total }) => (
-                <li
-                  key={course.slug}
-                  className="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-5 sm:flex-row"
-                >
-                  <CourseImage
-                    course={course}
-                    srcWidth={300}
-                    width={300}
-                    height={200}
-                    className="h-32 w-full shrink-0 rounded-lg object-cover sm:h-24 sm:w-32"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        "mb-1 text-xs font-bold tracking-wider uppercase",
-                        categoryStyle(course.category).text,
-                      )}
-                    >
-                      {course.category}
-                    </p>
-                    <h2 className="mb-3 text-lg leading-snug font-bold text-navy">
-                      <Link
-                        href={`/courses/${course.slug}`}
-                        className="hover:text-blue-600"
+              {cart.items.map(({ course, pricePence }, index) => {
+                const discountPence =
+                  cart.pricing.lines[index]?.discountPence ?? 0;
+                return (
+                  <li
+                    key={course.slug}
+                    className="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-5 sm:flex-row"
+                  >
+                    <CourseImage
+                      course={course}
+                      srcWidth={300}
+                      width={300}
+                      height={200}
+                      className="h-32 w-full shrink-0 rounded-lg object-cover sm:h-24 sm:w-32"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "mb-1 text-xs font-bold tracking-wider uppercase",
+                          categoryStyle(course.category).text,
+                        )}
                       >
-                        {course.title}
-                      </Link>
-                    </h2>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <form
-                        action={updateCartQuantity}
-                        className="flex items-center overflow-hidden rounded-md border border-gray-300"
-                      >
-                        <input type="hidden" name="slug" value={course.slug} />
-                        <button
-                          type="submit"
-                          name="quantity"
-                          value={quantity - 1}
-                          disabled={quantity <= 1}
-                          aria-label="Decrease quantity"
-                          className={stepClassName}
+                        {course.category}
+                      </p>
+                      <h2 className="mb-3 text-lg leading-snug font-bold text-navy">
+                        <Link
+                          href={`/courses/${course.slug}`}
+                          className="hover:text-blue-600"
                         >
-                          −
-                        </button>
-                        <span
-                          aria-label="Quantity"
-                          className="border-x border-gray-300 px-3 py-1.5 text-sm font-bold text-navy"
-                        >
-                          {quantity}
-                        </span>
-                        <button
-                          type="submit"
-                          name="quantity"
-                          value={quantity + 1}
-                          aria-label="Increase quantity"
-                          className={stepClassName}
-                        >
-                          +
-                        </button>
-                      </form>
-                      <div className="flex items-center gap-4">
-                        <span className="text-2xl font-extrabold text-navy">
-                          {formatCoursePrice(total)}
-                        </span>
-                        <form action={removeFromCart}>
-                          <input type="hidden" name="slug" value={course.slug} />
-                          <button
-                            type="submit"
-                            className="text-xs font-bold text-red-500 hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </form>
+                          {course.title}
+                        </Link>
+                      </h2>
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        <div className="flex items-center gap-4">
+                          {discountPence > 0 ? (
+                            <span className="flex flex-col items-end">
+                              <span className="text-2xl font-extrabold text-navy">
+                                {formatCoursePrice(
+                                  (pricePence - discountPence) / 100,
+                                )}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                <span className="line-through">
+                                  {formatCoursePrice(pricePence / 100)}
+                                </span>{" "}
+                                <span className="font-semibold text-green-700">
+                                  −{formatPence(discountPence)} coupon
+                                </span>
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-2xl font-extrabold text-navy">
+                              {formatCoursePrice(pricePence / 100)}
+                            </span>
+                          )}
+                          <form action={removeFromCart}>
+                            <input
+                              type="hidden"
+                              name="slug"
+                              value={course.slug}
+                            />
+                            <button
+                              type="submit"
+                              className="text-xs font-bold text-red-500 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </form>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
 
             <aside>
@@ -134,10 +128,19 @@ export default async function CartPage() {
                   </h2>
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>
-                      Subtotal ({cart.count} {cart.count === 1 ? "item" : "items"})
+                      Subtotal ({cart.count}{" "}
+                      {cart.count === 1 ? "item" : "items"})
                     </span>
-                    <span>{formatPrice(cart.total)}</span>
+                    <span>{formatPrice(cart.subtotal)}</span>
                   </div>
+                  {cart.appliedCoupon && (
+                    <div className="mt-2 flex justify-between text-sm text-green-700">
+                      <span>Coupon ({cart.appliedCoupon.code})</span>
+                      <span>
+                        −{formatPence(cart.appliedCoupon.discountPence)}
+                      </span>
+                    </div>
+                  )}
                   <div className="mt-4 flex items-baseline justify-between border-t border-gray-200 pt-4">
                     <span className="font-bold text-navy">Total</span>
                     <span className="text-3xl font-extrabold text-blue-600">
@@ -145,6 +148,23 @@ export default async function CartPage() {
                     </span>
                   </div>
                 </div>
+                <CouponForm
+                  applied={
+                    cart.appliedCoupon
+                      ? {
+                          code: cart.appliedCoupon.code,
+                          discount: formatPence(
+                            cart.appliedCoupon.discountPence,
+                          ),
+                        }
+                      : null
+                  }
+                  staleMessage={
+                    cart.couponError
+                      ? `Coupon ${cart.couponCode}: ${cart.couponError}`
+                      : null
+                  }
+                />
                 <div className="p-6">
                   <Link
                     href="/checkout"

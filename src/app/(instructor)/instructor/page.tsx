@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/activity-details";
 import { formatCount } from "@/lib/format";
+import { money } from "@/lib/order-display";
 import { getInstructorDashboard } from "@/services/instructor";
 import { can, requirePermission } from "@/services/user";
 
@@ -63,6 +64,33 @@ export default async function InstructorDashboardPage() {
             </li>
           ))}
         </ul>
+      </Card>
+
+      <Card title="Sales" className="mt-6">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
+          <li>
+            <p className="text-xs font-medium text-slate-500">Units sold</p>
+            <p className="text-2xl font-extrabold text-[#0f2a5c]">{formatCount(data.sales.units)}</p>
+            <p className="text-xs text-slate-500">Paid, not refunded</p>
+          </li>
+          <li>
+            <p className="text-xs font-medium text-slate-500">Revenue</p>
+            <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(data.sales.revenue)}</p>
+            <p className="text-xs text-slate-500">After coupons, before any fees</p>
+          </li>
+        </ul>
+        {data.sales.byCourse.length > 0 && (
+          <ul className="mt-4 divide-y border-t">
+            {data.sales.byCourse.map((c) => (
+              <li key={c.courseId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 truncate font-medium">{c.title}</span>
+                <span className="shrink-0 text-slate-600">
+                  {formatCount(c.units)} sold - <span className="tabular-nums">{money(c.revenue)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

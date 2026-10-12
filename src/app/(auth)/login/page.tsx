@@ -40,7 +40,7 @@ export default async function LoginPage({
       <p className="mt-6 text-center text-sm text-gray-600">
         Don&apos;t have an account?{" "}
         <Link
-          href="/sign-up"
+          href={returnTo ? `/sign-up?next=${encodeURIComponent(returnTo)}` : "/sign-up"}
           className="font-semibold text-blue-600 hover:underline"
         >
           Sign Up

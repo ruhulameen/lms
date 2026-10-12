@@ -32,6 +32,7 @@ export type Course = {
   externalImageId: string | null;
   category: string;
   categorySlug: string | null;
+  categoryId: number | null;
   summary?: string;
   // Approved reviews, and their average (null when there are none).
   reviews: number;
@@ -58,6 +59,7 @@ const courseSelect = {
   durationMinutes: true,
   externalImageId: true,
   thumbnail: { select: { key: true, kind: true } },
+  categoryId: true,
   category: { select: { name: true, slug: true } },
   _count: { select: { enrolments: { where: { status: { not: "CANCELLED" } } } } },
 } satisfies Prisma.CourseSelect;
@@ -95,6 +97,7 @@ function toCourse(row: CourseRow, stats: RatingStats): Course {
     externalImageId: row.externalImageId,
     category: row.category?.name ?? UNCATEGORISED,
     categorySlug: row.category?.slug ?? null,
+    categoryId: row.categoryId,
     summary: row.subtitle ?? undefined,
     reviews: rating?.count ?? 0,
     rating: rating?.average ?? null,
