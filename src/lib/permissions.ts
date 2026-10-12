@@ -55,7 +55,34 @@ export const permissionGroups = [
       { key: "blog-taxonomy.manage", label: "Manage categories and tags", description: "Create, rename and delete blog categories and tags" },
     ],
   },
+  {
+    key: "course",
+    label: "Courses",
+    permissions: [
+      { key: "course.view", label: "View courses", description: "See the course list and course details" },
+      { key: "course.create", label: "Create courses", description: "Add new courses" },
+      { key: "course.edit", label: "Edit courses", description: "Edit courses, curriculum and lesson files; submit courses for review" },
+      { key: "course.delete", label: "Delete courses", description: "Delete courses" },
+      { key: "course.publish", label: "Publish courses", description: "Publish, schedule, unpublish and archive courses; manage every instructor's courses" },
+      { key: "course-taxonomy.manage", label: "Manage course categories and tags", description: "Create, rename and delete course categories and tags" },
+    ],
+  },
+  {
+    key: "enrolment",
+    label: "Learners",
+    permissions: [
+      { key: "enrolment.view", label: "View enrolments", description: "See learners, their enrolments and progress" },
+      { key: "enrolment.manage", label: "Manage enrolments", description: "Assign courses to learners and cancel enrolments" },
+      { key: "review.moderate", label: "Moderate reviews", description: "Approve or reject course reviews" },
+      { key: "certificate.view", label: "View certificates", description: "See issued certificates" },
+      { key: "certificate.manage", label: "Manage certificates", description: "Issue and revoke certificates" },
+    ],
+  },
 ] as const;
+
+// Granted to the instructor role the first time each permission is seeded;
+// afterwards the permission matrix owns the assignments. Admin needs no rows.
+export const defaultInstructorPermissions: PermissionKey[] = ["course.view", "course.create", "course.edit"];
 
 export type PermissionKey =
   (typeof permissionGroups)[number]["permissions"][number]["key"];

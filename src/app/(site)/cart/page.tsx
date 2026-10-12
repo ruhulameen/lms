@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { removeFromCart, updateCartQuantity } from "@/actions/cart";
+import { CourseImage } from "@/components/site/course-card";
 import { categoryStyle } from "@/lib/category";
-import { formatPrice, unsplash } from "@/lib/format";
+import { formatCoursePrice } from "@/lib/course";
+import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCart } from "@/services/cart";
 
@@ -49,9 +50,9 @@ export default async function CartPage() {
                   key={course.slug}
                   className="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-5 sm:flex-row"
                 >
-                  <Image
-                    src={unsplash(course.image, 300)}
-                    alt=""
+                  <CourseImage
+                    course={course}
+                    srcWidth={300}
                     width={300}
                     height={200}
                     className="h-32 w-full shrink-0 rounded-lg object-cover sm:h-24 sm:w-32"
@@ -107,7 +108,7 @@ export default async function CartPage() {
                       </form>
                       <div className="flex items-center gap-4">
                         <span className="text-2xl font-extrabold text-navy">
-                          {formatPrice(total)}
+                          {formatCoursePrice(total)}
                         </span>
                         <form action={removeFromCart}>
                           <input type="hidden" name="slug" value={course.slug} />

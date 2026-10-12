@@ -15,11 +15,12 @@ import {
 
 type AdminUserMenuProps = {
   user: { name: string; email: string; role: string | null; image: string | null };
+  accountHref?: string;
 };
 
 // The sign-out form lives outside the menu: menu content is portaled, and a
 // submit button only submits a form it sits inside in the DOM (or names by id).
-export function AdminUserMenu({ user }: AdminUserMenuProps) {
+export function AdminUserMenu({ user, accountHref = "/admin/account" }: AdminUserMenuProps) {
   return (
     <>
       <DropdownMenu>
@@ -53,7 +54,7 @@ export function AdminUserMenu({ user }: AdminUserMenuProps) {
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href="/admin/account" />}>
+          <DropdownMenuItem render={<Link href={accountHref} />}>
             <UserCog />
             Account
           </DropdownMenuItem>

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import type { ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
+import { sniffedTypes } from "@/lib/file-sniff";
 import { formValues, type FormState } from "@/lib/form-state";
 import {
   checkFile,
@@ -166,36 +167,6 @@ export async function signUploadParts(
 
   return { ok: true, data: { parts: await presignParts(media.key, media.multipartUploadId, parsed.data.partNumbers) } };
 }
-
-// What the first bytes may be for each declared type. Text has no signature.
-const sniffedTypes: Record<string, string[] | null> = {
-  "image/jpeg": ["image/jpeg"],
-  "image/png": ["image/png", "image/apng"],
-  "image/webp": ["image/webp"],
-  "image/avif": ["image/avif"],
-  "image/gif": ["image/gif"],
-  "application/pdf": ["application/pdf"],
-  "application/msword": ["application/x-cfb"],
-  "application/vnd.ms-excel": ["application/x-cfb"],
-  "application/vnd.ms-powerpoint": ["application/x-cfb"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/zip",
-  ],
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/zip",
-  ],
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/zip",
-  ],
-  "video/mp4": ["video/mp4", "video/x-m4v"],
-  "video/webm": ["video/webm"],
-  "video/quicktime": ["video/quicktime"],
-  "text/plain": null,
-  "text/csv": null,
-};
 
 const HEAD_BYTES = 64 * 1024;
 const IMAGE_HEAD_BYTES = 1024 * 1024;

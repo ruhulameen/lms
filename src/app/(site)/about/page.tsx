@@ -160,11 +160,13 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-gray-50 py-16">
-        <div className={container}>
-          <ReviewSlider reviews={reviews} />
-        </div>
-      </section>
+      {reviews.length > 0 && (
+        <section className="bg-gray-50 py-16">
+          <div className={container}>
+            <ReviewSlider reviews={reviews} />
+          </div>
+        </section>
+      )}
 
       <section id="faqs" className="scroll-mt-24 bg-white py-16">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">

@@ -1,11 +1,27 @@
+import type { ComponentProps } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users } from "lucide-react";
 import { Stars } from "@/components/site/stars";
 import { categoryStyle } from "@/lib/category";
-import { formatCount, formatPrice, unsplash } from "@/lib/format";
+import { courseImageSrc, formatCoursePrice, isFree } from "@/lib/course";
+import { formatCount, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Course } from "@/services/course";
+
+// The thumbnail, or a plain tile while the course has no image.
+export function CourseImage({
+  course,
+  srcWidth,
+  ...props
+}: { course: Course; srcWidth: number } & Omit<ComponentProps<typeof Image>, "src" | "alt">) {
+  const src = courseImageSrc(course, srcWidth);
+  if (!src) {
+    const placeholder = "bg-linear-to-br from-blue-100 to-sky-200";
+    return <div className={props.fill ? cn(placeholder, "absolute inset-0") : cn(placeholder, props.className)} />;
+  }
+  return <Image src={src} alt="" {...props} />;
+}
 
 const cardClassName =
   "flex flex-col overflow-hidden rounded-xl bg-white transition duration-300 hover:-translate-y-0.5";
@@ -21,9 +37,9 @@ export function CourseCard({ course }: { course: Course }) {
       )}
     >
       <div className="relative h-48">
-        <Image
-          src={unsplash(course.image, 500)}
-          alt=""
+        <CourseImage
+          course={course}
+          srcWidth={500}
           fill
           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
           className="object-cover"
@@ -36,9 +52,9 @@ export function CourseCard({ course }: { course: Course }) {
         <h3 className="mb-2 grow text-base leading-tight font-bold text-navy">
           {course.title}
         </h3>
-        <Stars reviews={course.reviews} suffix=" reviews" />
+        <Stars reviews={course.reviews} rating={course.rating} suffix=" reviews" />
         <p className="mt-3 text-xl font-extrabold text-navy">
-          {formatPrice(course.price)}
+          {formatCoursePrice(course.price)}
         </p>
         <Link
           href={`/courses/${course.slug}`}
@@ -65,7 +81,7 @@ const toneClassName = {
 };
 
 export function DealCard({ course, label, tone }: DealCardProps) {
-  const free = course.price === 0;
+  const free = isFree(course.price);
 
   return (
     <div
@@ -75,9 +91,9 @@ export function DealCard({ course, label, tone }: DealCardProps) {
       )}
     >
       <div className="relative h-44">
-        <Image
-          src={unsplash(course.image, 500)}
-          alt=""
+        <CourseImage
+          course={course}
+          srcWidth={500}
           fill
           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
           className="object-cover"
@@ -103,7 +119,7 @@ export function DealCard({ course, label, tone }: DealCardProps) {
         <h3 className="mb-2 grow text-sm leading-snug font-bold text-navy">
           {course.title}
         </h3>
-        <Stars reviews={course.reviews} />
+        <Stars reviews={course.reviews} rating={course.rating} />
         <div className="mt-3 flex items-end gap-2">
           <span
             className={cn(
@@ -111,7 +127,7 @@ export function DealCard({ course, label, tone }: DealCardProps) {
               free ? "text-green-600" : "text-navy",
             )}
           >
-            {free ? "£0.00" : formatPrice(course.price)}
+            {formatCoursePrice(course.price)}
           </span>
           {course.oldPrice !== undefined && (
             <span className="mb-1 text-sm text-gray-400 line-through">
@@ -148,9 +164,9 @@ export function CourseListItem({ course }: { course: Course }) {
   return (
     <div className="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-5 transition hover:shadow-md md:flex-row">
       <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-lg md:h-32 md:w-48">
-        <Image
-          src={unsplash(course.image, 400)}
-          alt=""
+        <CourseImage
+          course={course}
+          srcWidth={400}
           fill
           sizes="(min-width: 768px) 12rem, 100vw"
           className="object-cover"
@@ -172,8 +188,8 @@ export function CourseListItem({ course }: { course: Course }) {
             <p className="mb-2 text-xs text-gray-500">{course.summary}</p>
           )}
           <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-            <Stars reviews={course.reviews} suffix=" reviews" />
-            {course.students !== undefined && (
+            <Stars reviews={course.reviews} rating={course.rating} suffix=" reviews" />
+            {course.students > 0 && (
               <span className="flex items-center gap-1">
                 <Users className="size-3" /> {formatCount(course.students)}{" "}
                 Students
@@ -207,7 +223,7 @@ export function CourseListItem({ course }: { course: Course }) {
               </span>
             )}
             <span className="text-lg font-extrabold text-navy">
-              {formatPrice(course.price)}
+              {formatCoursePrice(course.price)}
             </span>
           </div>
           <Link
@@ -228,9 +244,9 @@ export function SidebarCourse({ course }: { course: Course }) {
       href={`/courses/${course.slug}`}
       className="group flex gap-3 rounded-lg border border-gray-100 bg-white p-3 transition hover:border-blue-300 hover:shadow-[0_8px_20px_rgba(37,99,235,0.1)]"
     >
-      <Image
-        src={unsplash(course.image, 200)}
-        alt=""
+      <CourseImage
+        course={course}
+        srcWidth={200}
         width={64}
         height={64}
         className="size-16 shrink-0 rounded-lg object-cover"
@@ -239,9 +255,9 @@ export function SidebarCourse({ course }: { course: Course }) {
         <p className="mb-1 text-sm leading-snug font-semibold text-navy transition-colors group-hover:text-blue-600">
           {course.title}
         </p>
-        <Stars reviews={course.reviews} />
+        <Stars reviews={course.reviews} rating={course.rating} />
         <p className="mt-1.5 text-base font-extrabold text-navy">
-          {formatPrice(course.price)}
+          {formatCoursePrice(course.price)}
         </p>
       </div>
     </Link>

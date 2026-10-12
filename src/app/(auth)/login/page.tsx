@@ -5,6 +5,7 @@ import { BookOpen } from "lucide-react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { LoginForm } from "@/components/auth/login-form";
 import { panelHome } from "@/lib/panel";
+import { safeReturnPath } from "@/lib/return-path";
 import { getCurrentUser } from "@/services/user";
 
 export const metadata: Metadata = {
@@ -14,11 +15,12 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reset?: string }>;
+  searchParams: Promise<{ reset?: string; next?: string }>;
 }) {
-  const { reset } = await searchParams;
+  const { reset, next } = await searchParams;
+  const returnTo = safeReturnPath(next) ?? undefined;
   const user = await getCurrentUser();
-  if (user) redirect(panelHome(user.panel));
+  if (user) redirect(returnTo ?? panelHome(user.panel));
 
   return (
     <AuthCard
@@ -34,7 +36,7 @@ export default async function LoginPage({
           Password reset. Log in with your new password.
         </p>
       )}
-      <LoginForm />
+      <LoginForm next={returnTo} />
       <p className="mt-6 text-center text-sm text-gray-600">
         Don&apos;t have an account?{" "}
         <Link

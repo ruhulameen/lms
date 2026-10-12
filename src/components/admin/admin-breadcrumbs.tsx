@@ -17,14 +17,14 @@ function humanize(segment: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// Breadcrumb built from the URL: /admin/users/roles -> Dashboard / Users / Roles.
+// Breadcrumb built from the URL: /admin/users/roles -> Dashboard / Users / Roles (also under /instructor).
 export function AdminBreadcrumbs() {
-  const segments = usePathname().split("/").filter(Boolean).slice(1);
+  const [root, ...segments] = usePathname().split("/").filter(Boolean);
   const crumbs = [
-    { label: "Dashboard", href: "/admin" },
+    { label: "Dashboard", href: `/${root}` },
     ...segments.map((segment, index) => ({
       label: humanize(segment),
-      href: `/admin/${segments.slice(0, index + 1).join("/")}`,
+      href: `/${root}/${segments.slice(0, index + 1).join("/")}`,
     })),
   ];
 

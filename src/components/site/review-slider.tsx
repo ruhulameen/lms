@@ -5,7 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Folder, Users } from "lucide-react";
 import { SectionBadge } from "@/components/site/section-badge";
-import { formatCount, formatPrice, unsplash } from "@/lib/format";
+import { UserAvatar } from "@/components/site/user-avatar";
+import { courseImageSrc, formatCoursePrice } from "@/lib/course";
+import { formatCount } from "@/lib/format";
 import type { CourseReview } from "@/services/review";
 
 const arrowClassName =
@@ -14,16 +16,13 @@ const arrowClassName =
 function Reviewer({ review }: { review: CourseReview }) {
   return (
     <div className="flex items-center gap-3">
-      <Image
-        src={review.avatar}
-        alt=""
-        width={44}
-        height={44}
-        className="size-11 shrink-0 rounded-full object-cover"
-      />
+      <UserAvatar name={review.name} image={review.avatar} className="size-11" />
       <div>
         <p className="text-sm font-bold text-navy">{review.name}</p>
-        <p className="mt-0.5 text-xs text-amber-500">★★★★★</p>
+        <p className="mt-0.5 text-xs text-amber-500" aria-label={`Rated ${review.rating} out of 5`}>
+          {"★".repeat(review.rating)}
+          <span className="text-gray-300">{"★".repeat(5 - review.rating)}</span>
+        </p>
       </div>
     </div>
   );
@@ -72,7 +71,7 @@ export function ReviewSlider({ reviews }: { reviews: CourseReview[] }) {
       >
         {reviews.map((review) => (
           <div
-            key={review.name}
+            key={review.id}
             className="group relative min-h-80 w-[85vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-[0.875rem] border border-slate-200 bg-white shadow-[0_4px_15px_rgba(0,0,0,0.05)] transition duration-300 focus-within:shadow-[0_15px_35px_rgba(0,0,0,0.12)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.12)]"
           >
             <div className="flex h-full flex-col p-6 transition-opacity duration-300 group-focus-within:opacity-0 group-hover:opacity-0">
@@ -91,26 +90,30 @@ export function ReviewSlider({ reviews }: { reviews: CourseReview[] }) {
               <Reviewer review={review} />
               <div className="my-4 border-t border-gray-100" />
               <div className="mb-3 flex gap-3">
-                <Image
-                  src={unsplash(review.course.image, 200)}
-                  alt=""
-                  width={56}
-                  height={56}
-                  className="size-14 shrink-0 rounded-lg object-cover"
-                />
+                {courseImageSrc(review.course, 200) ? (
+                  <Image
+                    src={courseImageSrc(review.course, 200)!}
+                    alt=""
+                    width={56}
+                    height={56}
+                    className="size-14 shrink-0 rounded-lg object-cover"
+                  />
+                ) : (
+                  <span className="size-14 shrink-0 rounded-lg bg-linear-to-br from-blue-100 to-sky-200" />
+                )}
                 <p className="text-sm leading-snug font-semibold text-blue-600">
                   {review.course.title}
                 </p>
               </div>
               <p className="mb-3 text-2xl font-extrabold text-navy">
-                {formatPrice(review.course.price)}
+                {formatCoursePrice(review.course.price)}
               </p>
               <div className="mb-4 space-y-2 text-xs text-gray-600">
                 <p className="flex items-center gap-2.5">
                   <Folder className="size-4 shrink-0 text-blue-600" />
                   Category: {review.course.category}
                 </p>
-                {review.course.students !== undefined && (
+                {review.course.students > 0 && (
                   <p className="flex items-center gap-2.5">
                     <Users className="size-4 shrink-0 text-blue-600" />
                     Students enrolled: {formatCount(review.course.students)}

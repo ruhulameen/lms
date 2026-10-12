@@ -3,6 +3,7 @@
 import { useActionState, useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { createBlogCategory, createBlogTag, updateBlogCategory, updateBlogTag } from "@/actions/blog-taxonomy";
+import { createCourseCategory, createCourseTag, updateCourseCategory, updateCourseTag } from "@/actions/course-taxonomy";
 import { FormField } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +19,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { initialFormState } from "@/lib/form-state";
 import { slugify } from "@/lib/slug";
 
+const blogActions = {
+  createCategory: createBlogCategory,
+  updateCategory: updateBlogCategory,
+  createTag: createBlogTag,
+  updateTag: updateBlogTag,
+};
+const courseActions = {
+  createCategory: createCourseCategory,
+  updateCategory: updateCourseCategory,
+  createTag: createCourseTag,
+  updateTag: updateCourseTag,
+};
+
 type TaxonomyFormDialogProps = {
   kind: "category" | "tag";
+  // Which taxonomy: blog (default) or course.
+  domain?: "blog" | "course";
   // Existing item to edit; omit to create one.
   item?: { id: number; name: string; slug: string; description?: string | null };
   trigger: ReactNode;
@@ -27,7 +43,7 @@ type TaxonomyFormDialogProps = {
   triggerVariant?: "default" | "outline" | "ghost";
 };
 
-export function TaxonomyFormDialog({ kind, item, trigger, triggerLabel, triggerVariant = "outline" }: TaxonomyFormDialogProps) {
+export function TaxonomyFormDialog({ kind, domain = "blog", item, trigger, triggerLabel, triggerVariant = "outline" }: TaxonomyFormDialogProps) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   return (
@@ -42,15 +58,26 @@ export function TaxonomyFormDialog({ kind, item, trigger, triggerLabel, triggerV
             The slug is the last part of the public address. It must be unique among {kind === "tag" ? "tags" : "categories"}.
           </DialogDescription>
         </DialogHeader>
-        <TaxonomyForm kind={kind} item={item} onDone={close} />
+        <TaxonomyForm kind={kind} domain={domain} item={item} onDone={close} />
       </DialogContent>
     </Dialog>
   );
 }
 
 // Mounted only while the dialog is open, so it starts fresh each time.
-function TaxonomyForm({ kind, item, onDone }: { kind: "category" | "tag"; item?: TaxonomyFormDialogProps["item"]; onDone: () => void }) {
-  const action = kind === "category" ? (item ? updateBlogCategory : createBlogCategory) : item ? updateBlogTag : createBlogTag;
+function TaxonomyForm({
+  kind,
+  domain,
+  item,
+  onDone,
+}: {
+  kind: "category" | "tag";
+  domain: "blog" | "course";
+  item?: TaxonomyFormDialogProps["item"];
+  onDone: () => void;
+}) {
+  const actions = domain === "course" ? courseActions : blogActions;
+  const action = kind === "category" ? (item ? actions.updateCategory : actions.createCategory) : item ? actions.updateTag : actions.createTag;
   const [state, formAction, pending] = useActionState(action, initialFormState);
   const errors = state.ok ? undefined : state.fieldErrors;
   const values = state.values;

@@ -37,6 +37,7 @@ import {
 type AdminSidebarProps = {
   // Already filtered by the current user's permissions on the server.
   nav: AdminNavView;
+  title?: string;
 };
 
 const rowClassName =
@@ -190,7 +191,7 @@ function NavGroup({
   );
 }
 
-export function AdminSidebar({ nav }: AdminSidebarProps) {
+export function AdminSidebar({ nav, title = "EdX Admin" }: AdminSidebarProps) {
   const pathname = usePathname();
   const activeHref = findActiveHref(nav, pathname);
 
@@ -201,7 +202,7 @@ export function AdminSidebar({ nav }: AdminSidebarProps) {
           <GraduationCap className="size-5 text-sidebar" />
         </div>
         <span className="text-base font-bold text-white group-data-[collapsible=icon]:hidden">
-          EdX Admin
+          {title}
         </span>
       </SidebarHeader>
 

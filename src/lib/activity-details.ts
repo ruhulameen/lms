@@ -57,6 +57,86 @@ export function describeActivity(action: string, raw: unknown): string {
     case "blog-category.delete":
     case "blog-tag.delete":
       return `Deleted ${d.name} (${d.posts ?? 0} post${d.posts === 1 ? "" : "s"} affected)`;
+    case "course.create":
+    case "course.duplicate":
+    case "course.delete":
+    case "course.submit-for-review":
+    case "course.publish":
+    case "course.schedule":
+    case "course.unpublish":
+    case "course.archive":
+      return `"${d.title ?? "Untitled"}"`;
+    case "course.update":
+      return `"${d.title ?? "Untitled"}": updated ${list(d.fields)}`;
+    case "course.reorder":
+      return `"${d.title ?? "Untitled"}": reordered ${d.modules ?? 0} module${d.modules === 1 ? "" : "s"} and ${d.lessons ?? 0} lesson${d.lessons === 1 ? "" : "s"}`;
+    case "course-module.create":
+      return `Added module "${d.title}" to ${d.course}`;
+    case "course-module.update":
+      return d.from !== d.to ? `Renamed module "${d.from}" to "${d.to}" in ${d.course}` : `Updated module "${d.to}" in ${d.course}`;
+    case "course-module.delete":
+      return `Deleted module "${d.title}" and its ${d.lessons ?? 0} lesson${d.lessons === 1 ? "" : "s"} from ${d.course}`;
+    case "lesson.create":
+      return `Added ${String(d.type ?? "").toLowerCase()} lesson "${d.title}" to ${d.course}`;
+    case "lesson.update":
+      return Array.isArray(d.fields)
+        ? `"${d.title}" in ${d.course}: updated ${list(d.fields)}`
+        : `Updated lesson "${d.title}" in ${d.course}`;
+    case "lesson.delete":
+      return `Deleted lesson "${d.title}" from ${d.course}`;
+    case "lesson-resource.create":
+      return `Added resource "${d.title}" to "${d.lesson}" in ${d.course}`;
+    case "lesson-resource.update":
+      return `Renamed resource "${d.from}" to "${d.to}" in ${d.course}`;
+    case "lesson-resource.delete":
+      return `Deleted resource "${d.title}" from ${d.course}`;
+    case "lesson-resource.reorder":
+      return `Reordered resources in ${d.course}`;
+    case "course-category.create":
+    case "course-tag.create":
+      return `Created ${d.name}`;
+    case "course-category.update":
+    case "course-tag.update":
+      return d.from !== d.to ? `Renamed ${d.from} to ${d.to}` : `Updated ${d.to}`;
+    case "course-category.delete":
+    case "course-tag.delete":
+      return `Deleted ${d.name} (${d.courses ?? 0} course${d.courses === 1 ? "" : "s"} affected)`;
+    case "course.enrol":
+      return `Joined ${d.course} (${String(d.source ?? "").toLowerCase()})`;
+    case "course.complete":
+      return `Completed ${d.course}`;
+    case "review.submit":
+      return `Reviewed ${d.course}: ${d.rating} star${d.rating === 1 ? "" : "s"}`;
+    case "review.update":
+      return `Edited their review of ${d.course}: ${d.rating} star${d.rating === 1 ? "" : "s"}`;
+    case "review.approve":
+    case "review.reject":
+      return `${d.learner}'s ${d.rating}-star review of ${d.course}`;
+    case "review.delete":
+      return `${d.learner}'s ${d.rating}-star review of ${d.course} (was ${String(d.status ?? "").toLowerCase()})`;
+    case "quiz.update":
+      return `Quiz "${d.quiz}" in ${d.course}: settings saved (pass mark ${d.passingScore}%)`;
+    case "quiz-question.create":
+    case "quiz-question.update":
+    case "quiz-question.delete":
+      return `Quiz "${d.quiz}" in ${d.course}: "${d.question}"`;
+    case "quiz-question.reorder":
+      return `Reordered the questions of "${d.quiz}" in ${d.course}`;
+    case "quiz.submit":
+      return `Quiz "${d.quiz}" in ${d.course}: ${d.score}/${d.maxScore} (${d.percent}%), ${d.passed ? "passed" : "not passed"}${d.timedOut ? ", out of time" : ""}`;
+    case "quiz.pass":
+      return `Passed quiz "${d.quiz}" in ${d.course} with ${d.percent}%`;
+    case "certificate.issue":
+      return `${d.code} for ${d.course}${d.backfill ? " (issued afterwards)" : ""}`;
+    case "certificate.revoke":
+    case "certificate.restore":
+      return `${d.code}: ${d.learner}, ${d.course}`;
+    case "enrolment.assign":
+      return `${d.learner} was ${d.reactivated ? "re-enrolled in" : "given"} ${d.course}`;
+    case "enrolment.reactivate":
+      return `${d.learner}'s enrolment in ${d.course} is active again`;
+    case "enrolment.cancel":
+      return `${d.learner}'s enrolment in ${d.course} was cancelled`;
   }
 
   return Object.entries(d)

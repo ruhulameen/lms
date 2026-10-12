@@ -12,7 +12,10 @@ function postStatusCount(rows: { status: string; _count: { _all: number } }[], s
 export async function getDashboard(
   range: DateRange,
   includeActivity: boolean,
-  include: { posts: boolean; media: boolean } = { posts: false, media: false },
+  include: { posts: boolean; media: boolean; courses?: boolean; enrolments?: boolean; certificates?: boolean; reviews?: boolean } = {
+    posts: false,
+    media: false,
+  },
 ) {
   const inRange = { gte: range.from, lt: range.to };
 
@@ -27,6 +30,11 @@ export async function getDashboard(
     activity,
     postsByStatus,
     mediaCount,
+    courseCounts,
+    activeEnrolments,
+    completions,
+    certificateCount,
+    pendingReviews,
   ] = await Promise.all([
     db.user.count(),
     db.role.findMany({
@@ -45,6 +53,11 @@ export async function getDashboard(
     includeActivity ? listActivity({ pageSize: 6 }) : null,
     include.posts ? db.blogPost.groupBy({ by: ["status"], _count: { _all: true } }) : null,
     include.media ? db.media.count({ where: { uploadStatus: "READY" } }) : null,
+    include.courses ? db.course.groupBy({ by: ["status"], _count: { _all: true } }) : null,
+    include.enrolments ? db.enrolment.count({ where: { status: "ACTIVE" } }) : null,
+    include.enrolments ? db.enrolment.count({ where: { status: "COMPLETED" } }) : null,
+    include.certificates ? db.certificate.count({ where: { revokedAt: null } }) : null,
+    include.reviews ? db.courseReview.count({ where: { status: "PENDING" } }) : null,
   ]);
 
   const perDay = new Map<string, number>();
@@ -83,6 +96,15 @@ export async function getDashboard(
           }
         : null,
       media: mediaCount,
+    },
+    learning: {
+      courses: courseCounts
+        ? { total: courseCounts.reduce((sum, c) => sum + c._count._all, 0), published: postStatusCount(courseCounts, "PUBLISHED") }
+        : null,
+      activeEnrolments,
+      completions,
+      certificates: certificateCount,
+      pendingReviews,
     },
   };
 }

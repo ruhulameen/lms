@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import { Award, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { addToCart } from "@/actions/cart";
-import { PageHeading, SampleNotice } from "@/components/student/page-heading";
+import { CourseImage } from "@/components/site/course-card";
+import { PageHeading } from "@/components/student/page-heading";
 import { ProgressBar } from "@/components/student/progress-bar";
-import { formatPrice, unsplash } from "@/lib/format";
+import { formatCoursePrice } from "@/lib/course";
 import { cn } from "@/lib/utils";
 import {
   getEnrolments,
   getLearningSummary,
   getRecentActivity,
   getStudentRecommendations,
+  resumeHref,
 } from "@/services/student";
 import { requireUser } from "@/services/user";
 
@@ -20,21 +21,23 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentDashboardPage() {
-  const [user, summary, enrolments, recommendations, activity] =
-    await Promise.all([
-      requireUser(),
-      getLearningSummary(),
-      getEnrolments(),
-      getStudentRecommendations(),
-      getRecentActivity(),
-    ]);
-  const current = enrolments.find((enrolment) => !enrolment.completed);
+  const user = await requireUser();
+  const enrolments = await getEnrolments(user.id);
+  const [summary, recommendations, activity] = await Promise.all([
+    getLearningSummary(user.id, enrolments),
+    getStudentRecommendations(user.id, enrolments),
+    getRecentActivity(user.id),
+  ]);
+  const inProgress = enrolments.filter((enrolment) => !enrolment.completed);
+  const current = inProgress[0];
+  const others = inProgress.slice(1, 3);
+  const recentlyCompleted = enrolments.filter((enrolment) => enrolment.completed).slice(0, 3);
 
   const stats = [
     { label: "Enrolled", value: summary.enrolled, note: `${summary.inProgress} in progress`, className: "bg-linear-to-br from-blue-600 to-blue-900 text-white" },
     { label: "Completed", value: summary.completed, note: "Courses finished", className: "bg-linear-to-br from-orange-500 to-orange-600 text-white" },
-    { label: "Certificates", value: summary.certificates, note: "Ready", className: "border border-gray-200 bg-white text-navy" },
-    { label: "Learning hours", value: `${summary.learningHours}h`, note: "Last 30 days", className: "border border-gray-200 bg-white text-navy" },
+    { label: "Certificates", value: summary.certificates, note: summary.certificates ? "Earned" : "None yet", className: "border border-gray-200 bg-white text-navy" },
+    { label: "Lessons done", value: summary.lessonsCompleted, note: "Across all courses", className: "border border-gray-200 bg-white text-navy" },
   ];
 
   return (
@@ -43,7 +46,6 @@ export default async function StudentDashboardPage() {
         title={`Welcome back, ${user.name.split(" ")[0]} 👋`}
         description="Here's your learning snapshot."
       />
-      <SampleNotice />
 
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat) => (
@@ -57,6 +59,19 @@ export default async function StudentDashboardPage() {
         ))}
       </div>
 
+      {enrolments.length === 0 && (
+        <section className="mb-8 rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
+          <h2 className="mb-2 text-lg font-bold text-navy">You are not enrolled in a course yet</h2>
+          <p className="mb-5 text-sm text-gray-500">Pick a course from the catalogue to start learning.</p>
+          <Link
+            href="/courses"
+            className="inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
+          >
+            Browse courses
+          </Link>
+        </section>
+      )}
+
       {current && (
         <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-6">
           <div className="mb-5 flex items-center justify-between">
@@ -66,9 +81,9 @@ export default async function StudentDashboardPage() {
             </Link>
           </div>
           <div className="flex flex-col gap-5 rounded-2xl bg-blue-50 p-5 sm:flex-row">
-            <Image
-              src={unsplash(current.course.image, 400)}
-              alt=""
+            <CourseImage
+              course={current.course}
+              srcWidth={400}
               width={400}
               height={256}
               className="h-32 w-full shrink-0 rounded-xl object-cover sm:w-40"
@@ -81,92 +96,155 @@ export default async function StudentDashboardPage() {
                 <h3 className="mb-2 text-lg leading-snug font-bold text-navy">
                   {current.course.title}
                 </h3>
-                {current.nextLesson && (
+                {current.resume && (
                   <p className="mb-4 text-xs text-gray-500">
-                    Next: {current.nextLesson}
+                    Next: {current.resume.title}
                   </p>
                 )}
               </div>
               <div>
                 <ProgressBar value={current.progress} className="mb-3" />
                 <Link
-                  href={`/courses/${current.course.slug}`}
+                  href={resumeHref(current)}
                   className="inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
                 >
-                  Resume lesson
+                  {current.progress === 0 ? "Start course" : "Resume lesson"}
                 </Link>
               </div>
             </div>
           </div>
+          {others.length > 0 && (
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {others.map((enrolment) => (
+                <li key={enrolment.id} className="rounded-xl border border-gray-100 p-4">
+                  <p className="mb-2 line-clamp-2 text-sm font-bold text-navy">{enrolment.course.title}</p>
+                  <ProgressBar value={enrolment.progress} className="mb-2" />
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{enrolment.progress}%</span>
+                    <Link href={resumeHref(enrolment)} className="font-bold text-blue-600 hover:underline">
+                      {enrolment.progress === 0 ? "Start" : "Resume"}
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 lg:col-span-2">
-          <h2 className="mb-5 text-lg font-bold text-navy">Recommended for you</h2>
+      {recentlyCompleted.length > 0 && (
+        <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-6">
+          <h2 className="mb-5 text-lg font-bold text-navy">Recently completed</h2>
           <ul className="space-y-2">
-            {recommendations.map((course) => (
-              <li
-                key={course.slug}
-                className="flex items-center gap-4 rounded-xl p-3 hover:bg-gray-50"
-              >
-                <Image
-                  src={unsplash(course.image, 200)}
-                  alt=""
+            {recentlyCompleted.map((enrolment) => (
+              <li key={enrolment.id} className="flex items-center gap-4 rounded-xl p-3 hover:bg-gray-50">
+                <CourseImage
+                  course={enrolment.course}
+                  srcWidth={200}
                   width={56}
                   height={56}
                   className="size-14 shrink-0 rounded-lg object-cover"
                 />
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/courses/${course.slug}`}
+                    href={`/courses/${enrolment.course.slug}`}
                     className="line-clamp-2 text-sm font-bold text-navy hover:text-blue-600"
                   >
-                    {course.title}
+                    {enrolment.course.title}
                   </Link>
-                  <p className="text-xs text-gray-500">{course.category}</p>
+                  <p className="text-xs text-gray-500">
+                    Completed{" "}
+                    {enrolment.completedAt?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
                 </div>
-                <span className="font-extrabold text-navy">
-                  {formatPrice(course.price)}
-                </span>
-                <form action={addToCart}>
-                  <input type="hidden" name="slug" value={course.slug} />
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                {enrolment.certificateCode && (
+                  <Link
+                    href={`/certificates/${enrolment.certificateCode}`}
+                    className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50"
                   >
-                    Add
-                  </button>
-                </form>
+                    Certificate
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
         </section>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 lg:col-span-2">
+          <h2 className="mb-5 text-lg font-bold text-navy">Recommended for you</h2>
+          {recommendations.length === 0 ? (
+            <p className="text-sm text-gray-500">You have joined every course we have. Check back soon for new ones.</p>
+          ) : (
+            <ul className="space-y-2">
+              {recommendations.map((course) => (
+                <li
+                  key={course.slug}
+                  className="flex items-center gap-4 rounded-xl p-3 hover:bg-gray-50"
+                >
+                  <CourseImage
+                    course={course}
+                    srcWidth={200}
+                    width={56}
+                    height={56}
+                    className="size-14 shrink-0 rounded-lg object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/courses/${course.slug}`}
+                      className="line-clamp-2 text-sm font-bold text-navy hover:text-blue-600"
+                    >
+                      {course.title}
+                    </Link>
+                    <p className="text-xs text-gray-500">{course.category}</p>
+                  </div>
+                  <span className="font-extrabold text-navy">
+                    {formatCoursePrice(course.price)}
+                  </span>
+                  {course.price > 0 ? (
+                    <form action={addToCart}>
+                      <input type="hidden" name="slug" value={course.slug} />
+                      <button
+                        type="submit"
+                        className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                      >
+                        Add
+                      </button>
+                    </form>
+                  ) : (
+                    <Link
+                      href={`/courses/${course.slug}`}
+                      className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700"
+                    >
+                      Join
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6">
           <h2 className="mb-5 text-lg font-bold text-navy">Recent activity</h2>
-          <ul className="space-y-4">
-            {activity.map((item) => (
-              <li key={item.title} className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-full text-white",
-                    item.kind === "lesson" ? "bg-green-500" : "bg-blue-600",
-                  )}
-                >
-                  {item.kind === "lesson" ? (
+          {activity.length === 0 ? (
+            <p className="text-sm text-gray-500">Lessons you finish will show up here.</p>
+          ) : (
+            <ul className="space-y-4">
+              {activity.map((item) => (
+                <li key={item.id} className="flex items-start gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-500 text-white">
                     <Check className="size-4" />
-                  ) : (
-                    <Award className="size-4" />
-                  )}
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-navy">{item.title}</p>
-                  <p className="text-[10px] text-gray-500">{item.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-navy">Completed {item.title}</p>
+                    <p className="text-[10px] text-gray-500">{item.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </>

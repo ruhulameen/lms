@@ -4,11 +4,9 @@ import {
   BookOpen,
   Bot,
   Box,
-  ChartColumn,
   ChartLine,
   ChartPie,
   CirclePlus,
-  CircleQuestionMark,
   ClipboardList,
   Coins,
   FileCode,
@@ -71,25 +69,20 @@ export const adminNav: AdminNavEntry[] = [
     label: "Courses",
     icon: BookOpen,
     items: [
-      { label: "All Courses", icon: BookOpen },
-      { label: "Add Course", icon: CirclePlus },
-      { label: "Categories", icon: Tags },
-      { label: "Tags", icon: Tag },
-      { label: "Modules", icon: Box },
-      { label: "Lessons", icon: FileText },
-      { label: "Quizzes", icon: CircleQuestionMark },
-      { label: "Certificates", icon: Award },
-      { label: "Reviews", icon: Star },
+      { label: "All Courses", icon: BookOpen, href: "/admin/courses", permission: "course.view" },
+      { label: "Add Course", icon: CirclePlus, href: "/admin/courses/new", permission: "course.create" },
+      { label: "Categories", icon: Tags, href: "/admin/courses/categories", permission: "course.view" },
+      { label: "Tags", icon: Tag, href: "/admin/courses/tags", permission: "course.view" },
+      { label: "Reviews", icon: Star, href: "/admin/reviews", permission: "review.moderate" },
     ],
   },
   {
     label: "Learners",
     icon: GraduationCap,
     items: [
-      { label: "All Learners", icon: Users },
-      { label: "Enrolments", icon: UserCheck },
-      { label: "Progress", icon: ChartColumn },
-      { label: "Certificates", icon: Award },
+      { label: "All Learners", icon: Users, href: "/admin/learners", permission: "enrolment.view" },
+      { label: "Enrolments", icon: UserCheck, href: "/admin/enrolments", permission: "enrolment.view" },
+      { label: "Certificates", icon: Award, href: "/admin/certificates", permission: "certificate.view" },
       { label: "Activity", icon: History },
     ],
   },
@@ -176,6 +169,12 @@ export const adminNav: AdminNavEntry[] = [
   { label: "Activity Logs", icon: History, href: "/admin/activity-logs", permission: "activity.view" },
 ];
 
+export const instructorNav: AdminNavEntry[] = [
+  { label: "Dashboard", icon: LayoutDashboard, href: "/instructor" },
+  { label: "My Courses", icon: BookOpen, href: "/instructor/courses", permission: "course.view" },
+  { label: "Add Course", icon: CirclePlus, href: "/instructor/courses/new", permission: "course.create" },
+];
+
 // What the client sidebar receives: only permitted entries, icons already
 // rendered, so nothing the user may not see is shipped to the browser.
 export type AdminNavLinkView = { label: string; icon: ReactNode; href?: string };
@@ -195,6 +194,14 @@ function render(Icon: LucideIcon) {
 }
 
 export function buildAdminNav(user: CurrentUser): AdminNavView {
+  return buildNav(adminNav, user);
+}
+
+export function buildInstructorNav(user: CurrentUser): AdminNavView {
+  return buildNav(instructorNav, user);
+}
+
+function buildNav(entries: AdminNavEntry[], user: CurrentUser): AdminNavView {
   const allowed = (item: AdminNavItem) =>
     !item.permission || can(user, item.permission);
   const toLink = (item: AdminNavItem): AdminNavLinkView => ({
@@ -204,7 +211,7 @@ export function buildAdminNav(user: CurrentUser): AdminNavView {
   });
 
   const view: AdminNavView = [];
-  for (const entry of adminNav) {
+  for (const entry of entries) {
     if (!isGroup(entry)) {
       if (allowed(entry)) view.push(toLink(entry));
       continue;

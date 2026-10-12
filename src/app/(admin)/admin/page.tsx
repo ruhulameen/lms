@@ -57,7 +57,14 @@ export default async function AdminDashboardPage({
   const data = await getDashboard(range, can(user, "activity.view"), {
     posts: can(user, "post.view"),
     media: can(user, "media.view"),
+    courses: can(user, "course.view"),
+    enrolments: can(user, "enrolment.view"),
+    certificates: can(user, "certificate.view"),
+    reviews: can(user, "review.moderate"),
   });
+  const learning = data.learning;
+  const showLearning =
+    learning.courses !== null || learning.activeEnrolments !== null || learning.certificates !== null || learning.pendingReviews !== null;
 
   const quickActions = [
     can(user, "post.create") && { href: "/admin/blog/new", label: "New post", icon: SquarePen },
@@ -102,6 +109,55 @@ export default async function AdminDashboardPage({
           </ul>
         </Card>
       </div>
+
+      {showLearning && (
+        <Card title="Learning" className="mt-6">
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
+            {learning.courses && (
+              <li>
+                <p className="text-xs font-medium text-slate-500">Courses</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/courses" className="hover:underline">{formatCount(learning.courses.total)}</Link>
+                </p>
+                <p className="text-xs text-slate-500">{formatCount(learning.courses.published)} published</p>
+              </li>
+            )}
+            {learning.activeEnrolments !== null && (
+              <li>
+                <p className="text-xs font-medium text-slate-500">Active enrolments</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/enrolments?status=ACTIVE" className="hover:underline">{formatCount(learning.activeEnrolments)}</Link>
+                </p>
+              </li>
+            )}
+            {learning.completions !== null && (
+              <li>
+                <p className="text-xs font-medium text-slate-500">Completions</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/enrolments?status=COMPLETED" className="hover:underline">{formatCount(learning.completions)}</Link>
+                </p>
+              </li>
+            )}
+            {learning.certificates !== null && (
+              <li>
+                <p className="text-xs font-medium text-slate-500">Certificates issued</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/certificates" className="hover:underline">{formatCount(learning.certificates)}</Link>
+                </p>
+              </li>
+            )}
+            {learning.pendingReviews !== null && (
+              <li>
+                <p className="text-xs font-medium text-slate-500">Reviews to moderate</p>
+                <p className="text-2xl font-extrabold text-[#0f2a5c]">
+                  <Link href="/admin/reviews" className="hover:underline">{formatCount(learning.pendingReviews)}</Link>
+                </p>
+                {learning.pendingReviews > 0 && <p className="text-xs text-amber-700">Waiting for a decision</p>}
+              </li>
+            )}
+          </ul>
+        </Card>
+      )}
 
       {(data.content.posts || data.content.media !== null) && (
         <Card title="Content" className="mt-6">

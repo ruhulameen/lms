@@ -19,26 +19,35 @@ enum UserStatus {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  email             String             @unique
-  emailVerified     Boolean            @default(false)
-  name              String
-  image             String?            @db.Text
-  status            UserStatus         @default(ACTIVE)
-  twoFactorEnabled  Boolean            @default(false)
+  id                  Int                @id @default(autoincrement())
+  email               String             @unique
+  emailVerified       Boolean            @default(false)
+  name                String
+  image               String?            @db.Text
+  status              UserStatus         @default(ACTIVE)
+  twoFactorEnabled    Boolean            @default(false)
   // Public author bio shown on blog posts.
-  bio               String?            @db.Text
-  role              Role?              @relation(fields: [roleId], references: [id])
-  roleId            Int?
-  sessions          Session[]
-  accounts          Account[]
-  twoFactors        TwoFactor[]
-  activityLogs      ActivityLog[]
-  uploadedMedia     Media[]
-  blogPosts         BlogPost[]
-  blogPostRevisions BlogPostRevision[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  bio                 String?            @db.Text
+  role                Role?              @relation(fields: [roleId], references: [id])
+  roleId              Int?
+  sessions            Session[]
+  accounts            Account[]
+  twoFactors          TwoFactor[]
+  activityLogs        ActivityLog[]
+  uploadedMedia       Media[]
+  blogPosts           BlogPost[]
+  blogPostRevisions   BlogPostRevision[]
+  instructedCourses   Course[]           @relation("CourseInstructor")
+  createdCourses      Course[]           @relation("CourseCreator")
+  enrolments          Enrolment[]        @relation("EnrolmentLearner")
+  assignedEnrolments  Enrolment[]        @relation("EnrolmentAssigner")
+  courseReviews       CourseReview[]     @relation("ReviewAuthor")
+  moderatedReviews    CourseReview[]     @relation("ReviewModerator")
+  quizAttempts        QuizAttempt[]
+  certificates        Certificate[]      @relation("CertificateOwner")
+  revokedCertificates Certificate[]      @relation("CertificateRevoker")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@index([roleId])
   @@map("user")
@@ -197,6 +206,7 @@ enum ContentStatus {
 
 enum SeoEntityType {
   POST
+  COURSE
 }
 
 // Root folders (parentId null) are unique by name in code: MySQL allows
@@ -238,6 +248,7 @@ model Media {
   // Only set while a multipart upload is in progress.
   multipartUploadId String?           @db.VarChar(512)
   posts             BlogPost[]
+  courseThumbnails  Course[]
   seoImages         SeoData[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -338,7 +349,7 @@ model BlogPostRevision {
   @@map("blog_post_revision")
 }
 
-// Polymorphic on purpose (no foreign key): courses and categories reuse it later.
+// Polymorphic on purpose (no foreign key): posts and courses use it, categories may later.
 // Delete the row when its entity is deleted.
 model SeoData {
   id              Int           @id @default(autoincrement())
@@ -356,4 +367,361 @@ model SeoData {
   @@unique([entityType, entityId])
   @@index([socialImageId])
   @@map("seo_data")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: LMS
+// ---------------------------------------------------------------------------
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL_LEVELS
+}
+
+enum LessonType {
+  VIDEO
+  TEXT
+  DOCUMENT
+  QUIZ
+}
+
+enum EnrolmentSource {
+  FREE
+  ADMIN
+  ORDER
+}
+
+enum EnrolmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
+model CourseCategory {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?  @db.Text
+  sortOrder   Int      @default(0)
+  courses     Course[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("course_category")
+}
+
+model CourseTag {
+  id        Int             @id @default(autoincrement())
+  name      String
+  slug      String          @unique
+  courses   CourseTagLink[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@map("course_tag")
+}
+
+model CourseTagLink {
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId Int
+  tag      CourseTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId    Int
+
+  @@id([courseId, tagId])
+  @@index([tagId])
+  @@map("course_tag_link")
+}
+
+// Prices are in pounds; 0 is a free course. Lesson files (the intro video and
+// the files on lessons) live in the private bucket: only the key is stored,
+// never a URL (see src/services/lesson-access.ts).
+model Course {
+  id               Int             @id @default(autoincrement())
+  title            String
+  slug             String          @unique
+  subtitle         String?         @db.VarChar(255)
+  shortDescription String?         @db.Text
+  // Rich text document, same format as post bodies.
+  description      Json?
+  thumbnail        Media?          @relation(fields: [thumbnailId], references: [id], onDelete: SetNull)
+  thumbnailId      Int?
+  // Unsplash photo id shown until a thumbnail is chosen (sample data).
+  externalImageId  String?         @db.VarChar(100)
+  introVideoKey    String?         @db.VarChar(255)
+  introVideoName   String?
+  introVideoMime   String?         @db.VarChar(100)
+  introVideoSize   BigInt?
+  price            Decimal         @default(0) @db.Decimal(10, 2)
+  // The "was" price shown struck through; must be above price to count as a discount.
+  compareAtPrice   Decimal?        @db.Decimal(10, 2)
+  level            CourseLevel     @default(ALL_LEVELS)
+  language         String          @default("English") @db.VarChar(50)
+  // Shown on the course; when null the lesson durations are summed.
+  durationMinutes  Int?
+  badge            String?         @db.VarChar(60)
+  featured         Boolean         @default(false)
+  instructor       User?           @relation("CourseInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  instructorId     Int?
+  category         CourseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId       Int?
+  tags             CourseTagLink[]
+  status           ContentStatus   @default(DRAFT)
+  publishAt        DateTime?
+  publishedAt      DateTime?
+  createdBy        User?           @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById      Int?
+  modules          CourseModule[]
+  lessons          Lesson[]
+  enrolments       Enrolment[]
+  reviews          CourseReview[]
+  certificates     Certificate[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([thumbnailId])
+  @@index([instructorId])
+  @@index([createdById])
+  @@index([categoryId])
+  @@index([status, publishAt])
+  @@index([publishedAt])
+  @@index([featured])
+  @@map("course")
+}
+
+model CourseModule {
+  id          Int      @id @default(autoincrement())
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int
+  title       String
+  description String?  @db.Text
+  position    Int
+  lessons     Lesson[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([courseId, position])
+  @@map("course_module")
+}
+
+model Lesson {
+  id              Int              @id @default(autoincrement())
+  module          CourseModule     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId        Int
+  // Kept next to moduleId so progress and access checks need no join.
+  course          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId        Int
+  title           String
+  slug            String           @db.VarChar(120)
+  type            LessonType
+  // Rich text document, for text lessons (and notes on the others).
+  content         Json?
+  // Private-bucket file of a video or document lesson.
+  fileKey         String?          @db.VarChar(255)
+  fileName        String?
+  fileMimeType    String?          @db.VarChar(100)
+  fileSize        BigInt?
+  durationSeconds Int?
+  position        Int
+  isFreePreview   Boolean          @default(false)
+  // Unpublished lessons are hidden from learners and the public page.
+  published       Boolean          @default(true)
+  resources       LessonResource[]
+  progress        LessonProgress[]
+  quiz            Quiz?
+  lastEnrolments  Enrolment[]      @relation("EnrolmentLastLesson")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([courseId, slug])
+  @@index([moduleId, position])
+  @@map("lesson")
+}
+
+model LessonResource {
+  id           Int      @id @default(autoincrement())
+  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId     Int
+  title        String
+  fileKey      String   @db.VarChar(255)
+  fileName     String
+  fileMimeType String   @db.VarChar(100)
+  fileSize     BigInt
+  position     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([lessonId, position])
+  @@map("lesson_resource")
+}
+
+// Learner records are never deleted along with a user or course: the foreign
+// keys restrict. Cancel an enrolment (status) instead of removing it.
+model Enrolment {
+  id              Int              @id @default(autoincrement())
+  user            User             @relation("EnrolmentLearner", fields: [userId], references: [id], onDelete: Restrict)
+  userId          Int
+  course          Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseId        Int
+  source          EnrolmentSource
+  status          EnrolmentStatus  @default(ACTIVE)
+  enrolledAt      DateTime         @default(now())
+  completedAt     DateTime?
+  lastLesson      Lesson?          @relation("EnrolmentLastLesson", fields: [lastLessonId], references: [id], onDelete: SetNull)
+  lastLessonId    Int?
+  assignedBy      User?            @relation("EnrolmentAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  assignedById    Int?
+  // Cached completed lessons over published lessons, 0-100.
+  progressPercent Int              @default(0)
+  progress        LessonProgress[]
+  quizAttempts    QuizAttempt[]
+  certificate     Certificate?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@index([lastLessonId])
+  @@index([assignedById])
+  @@map("enrolment")
+}
+
+model LessonProgress {
+  id                  Int       @id @default(autoincrement())
+  enrolment           Enrolment @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  enrolmentId         Int
+  lesson              Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId            Int
+  completedAt         DateTime?
+  lastPositionSeconds Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([enrolmentId, lessonId])
+  @@index([lessonId])
+  @@map("lesson_progress")
+}
+
+model CourseReview {
+  id            Int          @id @default(autoincrement())
+  user          User         @relation("ReviewAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+  course        Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId      Int
+  // 1-5, checked in code.
+  rating        Int
+  title         String?      @db.VarChar(150)
+  body          String?      @db.Text
+  status        ReviewStatus @default(PENDING)
+  moderatedBy   User?        @relation("ReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedById Int?
+  moderatedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@index([moderatedById])
+  @@map("course_review")
+}
+
+// One per quiz lesson.
+model Quiz {
+  id               Int           @id @default(autoincrement())
+  lesson           Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId         Int           @unique
+  // Percent needed to pass, 0-100.
+  passingScore     Int           @default(70)
+  attemptLimit     Int?
+  timeLimitMinutes Int?
+  passFeedback     String?       @db.Text
+  failFeedback     String?       @db.Text
+  shuffleQuestions Boolean       @default(false)
+  questions        Question[]
+  attempts         QuizAttempt[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("quiz")
+}
+
+model Question {
+  id          Int          @id @default(autoincrement())
+  quiz        Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId      Int
+  type        QuestionType
+  text        String       @db.Text
+  explanation String?      @db.Text
+  points      Int          @default(1)
+  position    Int
+  // [{ id, text, correct }]; true/false questions hold two options.
+  options     Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([quizId, position])
+  @@map("question")
+}
+
+model QuizAttempt {
+  id          Int       @id @default(autoincrement())
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId      Int
+  enrolment   Enrolment @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  enrolmentId Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  score       Int?
+  maxScore    Int?
+  percent     Float?
+  passed      Boolean?
+  // { [questionId]: selected option ids }
+  answers     Json?
+
+  @@index([quizId, enrolmentId])
+  @@index([enrolmentId])
+  @@index([userId])
+  @@map("quiz_attempt")
+}
+
+// Issued once per enrolment. The learner and course names are copied so the
+// public verification page stays correct after a rename.
+model Certificate {
+  id          Int       @id @default(autoincrement())
+  enrolment   Enrolment @relation(fields: [enrolmentId], references: [id], onDelete: Restrict)
+  enrolmentId Int       @unique
+  user        User      @relation("CertificateOwner", fields: [userId], references: [id], onDelete: Restrict)
+  userId      Int
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseId    Int
+  // LMS-XXXX-XXXX-XXXX, see generateCertificateCode in src/lib/course.ts.
+  code        String    @unique @db.VarChar(32)
+  issuedAt    DateTime  @default(now())
+  revokedAt   DateTime?
+  revokedBy   User?     @relation("CertificateRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedById Int?
+  learnerName String
+  courseTitle String
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([revokedById])
+  @@map("certificate")
 }

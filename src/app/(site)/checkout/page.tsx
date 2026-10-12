@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckoutSteps } from "@/components/site/checkout-steps";
+import { formatCoursePrice } from "@/lib/course";
 import { formatPrice } from "@/lib/format";
 import { getCart } from "@/services/cart";
 
@@ -56,7 +57,7 @@ export default async function CheckoutPage() {
                   <p className="text-xs text-gray-500">Quantity: {quantity}</p>
                 </div>
                 <span className="text-sm font-semibold">
-                  {formatPrice(total)}
+                  {formatCoursePrice(total)}
                 </span>
               </li>
             ))}

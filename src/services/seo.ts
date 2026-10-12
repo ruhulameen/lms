@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SeoFieldsInput } from "@/lib/seo";
 
-// Only posts for now; courses and categories join the enum in later phases.
-export type SeoEntityType = "POST";
+// Posts and courses; categories may join the enum later.
+export type SeoEntityType = "POST" | "COURSE";
 
 // Pass a transaction client to take part in the caller's transaction.
 type Client = Prisma.TransactionClient | typeof db;

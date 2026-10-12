@@ -32,7 +32,8 @@ const passwordSchema = z
 
 // Each panel has its own account page for the same forms.
 function accountPath(panel: Panel) {
-  return panel === "admin" ? "/admin/account" : "/settings";
+  if (panel === "admin") return "/admin/account";
+  return panel === "instructor" ? "/instructor/account" : "/settings";
 }
 
 function failure(error: unknown, fallback: string): AccountState {

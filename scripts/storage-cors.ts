@@ -1,4 +1,5 @@
-// Applies the CORS rule browser uploads need to the R2 bucket: PUT from the app
+// Applies the CORS rule browser uploads need to the R2 bucket (and to the private
+// lesson bucket when R2_PRIVATE_BUCKET is set): PUT from the app
 // origin (BETTER_AUTH_URL), with ETag exposed so the uploader can complete
 // multipart uploads. Run once per bucket (and again if the app origin changes):
 //   pnpm storage:cors
@@ -21,24 +22,27 @@ async function main() {
     responseChecksumValidation: "WHEN_REQUIRED",
   });
 
-  await client.send(
-    new PutBucketCorsCommand({
-      Bucket: R2_BUCKET,
-      CORSConfiguration: {
-        CORSRules: [
-          {
-            AllowedOrigins: [origin],
-            AllowedMethods: ["PUT"],
-            AllowedHeaders: ["*"],
-            ExposeHeaders: ["ETag"],
-            MaxAgeSeconds: 3600,
-          },
-        ],
-      },
-    }),
-  );
-  const applied = await client.send(new GetBucketCorsCommand({ Bucket: R2_BUCKET }));
-  console.log(`CORS applied to ${R2_BUCKET} for ${origin}:`, JSON.stringify(applied.CORSRules));
+  const buckets = [R2_BUCKET, process.env.R2_PRIVATE_BUCKET].filter((name): name is string => Boolean(name));
+  for (const Bucket of buckets) {
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedOrigins: [origin],
+              AllowedMethods: ["PUT"],
+              AllowedHeaders: ["*"],
+              ExposeHeaders: ["ETag"],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      }),
+    );
+    const applied = await client.send(new GetBucketCorsCommand({ Bucket }));
+    console.log(`CORS applied to ${Bucket} for ${origin}:`, JSON.stringify(applied.CORSRules));
+  }
 }
 
 main().catch((error) => {

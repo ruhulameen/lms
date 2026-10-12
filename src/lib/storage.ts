@@ -17,20 +17,31 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 // environment and never leave the server.
 const PRESIGN_TTL_SECONDS = 60 * 60;
 
-export function isStorageConfigured() {
+// Signed read links for private files. Video needs the full hour so playback and
+// seeking keep working; downloads are fetched at once.
+export const VIDEO_URL_TTL_SECONDS = 60 * 60;
+export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
+
+function hasCredentials() {
   return Boolean(
-    process.env.R2_ACCOUNT_ID &&
-      process.env.R2_ACCESS_KEY_ID &&
-      process.env.R2_SECRET_ACCESS_KEY &&
-      process.env.R2_BUCKET &&
-      process.env.R2_PUBLIC_URL,
+    process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY,
   );
+}
+
+export function isStorageConfigured() {
+  return Boolean(hasCredentials() && process.env.R2_BUCKET && process.env.R2_PUBLIC_URL);
+}
+
+// The second bucket holds lesson files. It has no public URL: every read is a
+// signed link made on the server. Same account and credentials as the first.
+export function isPrivateStorageConfigured() {
+  return Boolean(hasCredentials() && process.env.R2_PRIVATE_BUCKET);
 }
 
 let client: S3Client | undefined;
 
 function s3() {
-  if (!isStorageConfigured()) throw new Error("Storage is not configured.");
+  if (!hasCredentials()) throw new Error("Storage is not configured.");
   client ??= new S3Client({
     region: "auto",
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -45,7 +56,15 @@ function s3() {
   return client;
 }
 
-const bucket = () => process.env.R2_BUCKET!;
+function publicBucket() {
+  if (!isStorageConfigured()) throw new Error("Storage is not configured.");
+  return process.env.R2_BUCKET!;
+}
+
+function privateBucket() {
+  if (!isPrivateStorageConfigured()) throw new Error("Private storage is not configured.");
+  return process.env.R2_PRIVATE_BUCKET!;
+}
 
 function sanitiseFilename(filename: string) {
   const dot = filename.lastIndexOf(".");
@@ -70,43 +89,54 @@ export function generateObjectKey(filename: string, now = new Date()) {
   return `media/${yyyy}/${mm}/${randomBytes(8).toString("hex")}-${sanitiseFilename(filename)}`;
 }
 
-export async function presignPut(key: string, contentType: string) {
+// Key of a lesson file: lessons/<courseId>/<random>-<name>. The course id keeps
+// a bucket listing readable and lets the access checks match key to course.
+export function generatePrivateObjectKey(courseId: number, filename: string) {
+  return `lessons/${courseId}/${randomBytes(8).toString("hex")}-${sanitiseFilename(filename)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Operations on either bucket. The exported functions below bind them.
+// ---------------------------------------------------------------------------
+
+async function putUrl(bucket: string, key: string, contentType: string) {
   return getSignedUrl(
     s3(),
-    new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
+    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
     { expiresIn: PRESIGN_TTL_SECONDS },
   );
 }
 
-export async function createMultipartUpload(key: string, contentType: string) {
+async function startMultipart(bucket: string, key: string, contentType: string) {
   const result = await s3().send(
-    new CreateMultipartUploadCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
+    new CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
   );
   if (!result.UploadId) throw new Error("Storage did not return an upload id.");
   return result.UploadId;
 }
 
-export async function presignParts(key: string, uploadId: string, partNumbers: number[]) {
+async function partUrls(bucket: string, key: string, uploadId: string, partNumbers: number[]) {
   return Promise.all(
     partNumbers.map(async (partNumber) => ({
       partNumber,
       url: await getSignedUrl(
         s3(),
-        new UploadPartCommand({ Bucket: bucket(), Key: key, UploadId: uploadId, PartNumber: partNumber }),
+        new UploadPartCommand({ Bucket: bucket, Key: key, UploadId: uploadId, PartNumber: partNumber }),
         { expiresIn: PRESIGN_TTL_SECONDS },
       ),
     })),
   );
 }
 
-export async function completeMultipartUpload(
+async function finishMultipart(
+  bucket: string,
   key: string,
   uploadId: string,
   parts: { partNumber: number; etag: string }[],
 ) {
   await s3().send(
     new CompleteMultipartUploadCommand({
-      Bucket: bucket(),
+      Bucket: bucket,
       Key: key,
       UploadId: uploadId,
       MultipartUpload: {
@@ -118,14 +148,13 @@ export async function completeMultipartUpload(
   );
 }
 
-export async function abortMultipartUpload(key: string, uploadId: string) {
-  await s3().send(new AbortMultipartUploadCommand({ Bucket: bucket(), Key: key, UploadId: uploadId }));
+async function cancelMultipart(bucket: string, key: string, uploadId: string) {
+  await s3().send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }));
 }
 
-// Size and content type of a stored object, or null when it does not exist.
-export async function headObject(key: string) {
+async function head(bucket: string, key: string) {
   try {
-    const result = await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    const result = await s3().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
     return { size: result.ContentLength ?? 0, contentType: result.ContentType ?? null };
   } catch (error) {
     const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
@@ -134,22 +163,95 @@ export async function headObject(key: string) {
   }
 }
 
-// First `length` bytes, for type sniffing and reading image dimensions.
-export async function readObjectHead(key: string, length: number) {
+async function readHead(bucket: string, key: string, length: number) {
   const result = await s3().send(
-    new GetObjectCommand({ Bucket: bucket(), Key: key, Range: `bytes=0-${length - 1}` }),
+    new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=0-${length - 1}` }),
   );
   if (!result.Body) return new Uint8Array();
   return result.Body.transformToByteArray();
 }
 
-export async function deleteObject(key: string) {
-  await s3().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+async function remove(bucket: string, key: string) {
+  await s3().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
+
+// ---------------------------------------------------------------------------
+// Public bucket (media library)
+// ---------------------------------------------------------------------------
+
+export const presignPut = (key: string, contentType: string) => putUrl(publicBucket(), key, contentType);
+
+export const createMultipartUpload = (key: string, contentType: string) =>
+  startMultipart(publicBucket(), key, contentType);
+
+export const presignParts = (key: string, uploadId: string, partNumbers: number[]) =>
+  partUrls(publicBucket(), key, uploadId, partNumbers);
+
+export const completeMultipartUpload = (
+  key: string,
+  uploadId: string,
+  parts: { partNumber: number; etag: string }[],
+) => finishMultipart(publicBucket(), key, uploadId, parts);
+
+export const abortMultipartUpload = (key: string, uploadId: string) =>
+  cancelMultipart(publicBucket(), key, uploadId);
+
+// Size and content type of a stored object, or null when it does not exist.
+export const headObject = (key: string) => head(publicBucket(), key);
+
+// First `length` bytes, for type sniffing and reading image dimensions.
+export const readObjectHead = (key: string, length: number) => readHead(publicBucket(), key, length);
+
+export const deleteObject = (key: string) => remove(publicBucket(), key);
 
 // Safe to call without storage configured: returns null.
 export function publicUrl(key: string) {
   const base = process.env.R2_PUBLIC_URL;
   if (!base) return null;
   return `${base.replace(/\/+$/, "")}/${key.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Private bucket (lesson files). Same operations; check isPrivateStorageConfigured()
+// first, they throw when R2_PRIVATE_BUCKET is unset.
+// ---------------------------------------------------------------------------
+
+export const privateStorage = {
+  presignPut: (key: string, contentType: string) => putUrl(privateBucket(), key, contentType),
+  createMultipartUpload: (key: string, contentType: string) => startMultipart(privateBucket(), key, contentType),
+  presignParts: (key: string, uploadId: string, partNumbers: number[]) =>
+    partUrls(privateBucket(), key, uploadId, partNumbers),
+  completeMultipartUpload: (key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) =>
+    finishMultipart(privateBucket(), key, uploadId, parts),
+  abortMultipartUpload: (key: string, uploadId: string) => cancelMultipart(privateBucket(), key, uploadId),
+  headObject: (key: string) => head(privateBucket(), key),
+  readObjectHead: (key: string, length: number) => readHead(privateBucket(), key, length),
+  deleteObject: (key: string) => remove(privateBucket(), key),
+
+  // A signed GET link. `filename` sets the name a download is saved under;
+  // `inline` lets the browser show the file (video, PDF) instead of saving it.
+  async presignGet(
+    key: string,
+    options: { expiresIn?: number; filename?: string; inline?: boolean; contentType?: string } = {},
+  ) {
+    const disposition = options.filename
+      ? `${options.inline ? "inline" : "attachment"}; filename="${asciiFilename(options.filename)}"; filename*=UTF-8''${encodeURIComponent(options.filename)}`
+      : options.inline
+        ? "inline"
+        : undefined;
+    return getSignedUrl(
+      s3(),
+      new GetObjectCommand({
+        Bucket: privateBucket(),
+        Key: key,
+        ResponseContentDisposition: disposition,
+        ResponseContentType: options.contentType,
+      }),
+      { expiresIn: options.expiresIn ?? VIDEO_URL_TTL_SECONDS },
+    );
+  },
+};
+
+function asciiFilename(filename: string) {
+  return filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
 }

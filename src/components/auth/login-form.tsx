@@ -8,11 +8,12 @@ import { AuthField } from "@/components/auth/auth-field";
 
 const initialState: AuthState = {};
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
     <form action={formAction} className="space-y-4">
+      {next && <input type="hidden" name="next" value={next} />}
       {/* Keyed so the field remounts with the submitted email after an error. */}
       <AuthField
         key={state.email}

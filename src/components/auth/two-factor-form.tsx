@@ -13,7 +13,7 @@ import {
 
 const initialState: AuthState = {};
 
-export function TwoFactorForm() {
+export function TwoFactorForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(verifyTwoFactor, initialState);
   const [backup, setBackup] = useState(false);
   const [code, setCode] = useState("");
@@ -28,6 +28,7 @@ export function TwoFactorForm() {
       className="space-y-4"
     >
       <input type="hidden" name="method" value={backup ? "backup" : "totp"} />
+      {next && <input type="hidden" name="next" value={next} />}
 
       {backup ? (
         <AuthField

@@ -175,22 +175,34 @@ export async function getMedia(id: number) {
 
 export type MediaUsage = { label: string; href: string | null };
 
-// Where a file is referenced by a field (featured and social images).
+// Where a file is referenced by a field (featured, thumbnail and social images).
 // Images placed inside rich text bodies are not tracked.
 export async function getMediaUsage(id: number): Promise<MediaUsage[]> {
-  const [posts, seo] = await Promise.all([
+  const [posts, courses, seo] = await Promise.all([
     db.blogPost.findMany({ where: { featuredImageId: id }, select: { id: true, title: true } }),
-    db.seoData.findMany({ where: { socialImageId: id }, select: { entityId: true } }),
+    db.course.findMany({ where: { thumbnailId: id }, select: { id: true, title: true } }),
+    db.seoData.findMany({ where: { socialImageId: id }, select: { entityType: true, entityId: true } }),
   ]);
-  const seoPosts = await db.blogPost.findMany({
-    where: { id: { in: seo.map((s) => s.entityId) } },
-    select: { id: true, title: true },
-  });
+  const [seoPosts, seoCourses] = await Promise.all([
+    db.blogPost.findMany({
+      where: { id: { in: seo.filter((s) => s.entityType === "POST").map((s) => s.entityId) } },
+      select: { id: true, title: true },
+    }),
+    db.course.findMany({
+      where: { id: { in: seo.filter((s) => s.entityType === "COURSE").map((s) => s.entityId) } },
+      select: { id: true, title: true },
+    }),
+  ]);
   return [
     ...posts.map((p) => ({ label: `Featured image of post "${p.title}"`, href: `/admin/blog/${p.id}` })),
+    ...courses.map((c) => ({ label: `Thumbnail of course "${c.title}"`, href: `/admin/courses/${c.id}` })),
     ...seo.map((s) => {
-      const post = seoPosts.find((p) => p.id === s.entityId);
-      return { label: `Social image of post "${post?.title ?? `#${s.entityId}`}"`, href: `/admin/blog/${s.entityId}` };
+      const isCourse = s.entityType === "COURSE";
+      const title = (isCourse ? seoCourses : seoPosts).find((e) => e.id === s.entityId)?.title ?? `#${s.entityId}`;
+      return {
+        label: `Social image of ${isCourse ? "course" : "post"} "${title}"`,
+        href: `/admin/${isCourse ? "courses" : "blog"}/${s.entityId}`,
+      };
     }),
   ];
 }

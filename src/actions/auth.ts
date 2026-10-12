@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { panelHome } from "@/lib/panel";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { safeReturnPath } from "@/lib/return-path";
 import { logActivity } from "@/services/activity";
 import { db } from "@/lib/db";
 import { getCurrentUser, getUserPanel } from "@/services/user";
@@ -86,7 +87,11 @@ export async function login(
     });
     // The password was right but the account needs a second factor; the
     // plugin has set its pending-challenge cookie.
-    if (!("user" in result)) redirect("/two-factor");
+    if (!("user" in result)) {
+      // Carry the page the visitor was sent from through the second step.
+      const back = safeReturnPath(formData.get("next"));
+      redirect(back ? `/two-factor?next=${encodeURIComponent(back)}` : "/two-factor");
+    }
     userId = Number(result.user.id);
   } catch (error) {
     if (error instanceof APIError) {
@@ -96,6 +101,9 @@ export async function login(
     throw error;
   }
 
+  // A page that sent the visitor here (e.g. "Enrol for free") asks to be returned to.
+  const returnTo = safeReturnPath(formData.get("next"));
+  if (returnTo) redirect(returnTo);
   redirect(panelHome(await getUserPanel(userId)));
 }
 
@@ -310,6 +318,8 @@ export async function verifyTwoFactor(
     throw error;
   }
 
+  const returnTo = safeReturnPath(formData.get("next"));
+  if (returnTo) redirect(returnTo);
   redirect(panelHome(await getUserPanel(userId)));
 }
 

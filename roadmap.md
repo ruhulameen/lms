@@ -4,7 +4,7 @@ Source: `~/elearning_cms_admin_dashboard_requirements.docx` ("eLearning CMS & Ad
 
 The current work list lives in [task.md](task.md). This file is the long view: what each phase delivers and where the project stands.
 
-Status as of 2026-10-12: **Phase 1 built; browser check by hand still open (see task.md).**
+Status as of 2026-10-13: **Phases 1 and 2 built and committed; Phase 3 dropped; Phase 4 built, not yet committed.**
 
 ## Where the project differs from the spec
 
@@ -18,7 +18,7 @@ The spec was written generically; some choices were already made in this codebas
 | Forms | React Hook Form + Zod | shadcn fields + `useActionState`, Zod in server actions | decided 2026-10-12: Zod is mandatory for validation; React Hook Form may be added where a form needs it |
 | Auth | not specified | Better Auth, DB-stored roles, optional TOTP 2FA | decided |
 | Roles (§22) | Super Admin, Admin, Course Manager, Instructor, Content Editor, SEO Manager, Marketing Manager, Support, Finance, Learner | Seeded: `student`, `instructor`, `admin` (`admin` is the superuser) | decided 2026-10-12: role names stay as they are; other roles are created as data in the admin panel |
-| Panels | Admin console only | Admin, student (built), instructor (planned) | decided; student and instructor panels are extra scope |
+| Panels | Admin console only | Admin, student and instructor (built) | decided; student and instructor panels are extra scope |
 | Payments (§12) | Stripe | none yet | **open** — confirm Stripe is available for the business's country |
 | Email (§24) | Email settings | Logged to console; no provider | decided 2026-10-12: console logging for now; a provider is needed before production |
 | Storage (§20) | S3-compatible | none yet | decided 2026-10-12: Cloudflare R2, through its S3-compatible API |
@@ -55,7 +55,7 @@ Acceptance criteria (§32):
 
 The auth module is complete: forgot/reset password, 2FA sign-in and setup, email verification banner, rate limiting.
 
-### Phase 2 — Blog and media (built; browser check pending)
+### Phase 2 — Blog and media (built and committed)
 
 Stage-by-stage plan and decisions are in [task.md](task.md). Scope cut by the owner on 2026-10-12: no CMS pages and no page templates (spec §7), so only §20, §21 and post revisions from §23 are built.
 
@@ -70,7 +70,11 @@ Stage-by-stage plan and decisions are in [task.md](task.md). Scope cut by the ow
 
 Dropped by the owner on 2026-10-12: the project will not use a visual page builder. Pages keep the rich text body from Phase 2. Spec §8 and §9 (builder, builder components, dnd-kit) are out of scope until this is reopened. Phase numbers are kept as in the spec, so Phase 4 follows Phase 2.
 
-### Phase 4 — LMS
+### Phase 4 — LMS (built, uncommitted)
+
+Delivered: courses with categories, tags, modules, lessons (video, text, document, quiz), resources and private-bucket files; drag-and-drop curriculum; quizzes with single, multiple and true/false questions, attempts and time limits; enrolment (free join and admin-assigned), progress, reviews with approval, certificates with public verification; the student panel on real data; the instructor panel (`/instructor`: own courses, submit for review, read-only learners). Deferred: assignment and interactive lessons, other question types, question bank, server-side certificate PDFs, video streaming or transcoding. The checklist and decisions are in [task.md](task.md).
+
+Original scope:
 
 Courses, modules, lessons, quizzes, progress and certificates (§10, §11, §30).
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Ban, CircleCheck, Pause } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { EmptyState } from "@/components/admin/empty-state";
+import { EnrolmentStatusBadge, ProgressCell } from "@/components/admin/enrolment-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { UserForm } from "@/components/admin/user-form";
 import { UserStatusBadge } from "@/components/admin/user-status-badge";
@@ -11,6 +12,8 @@ import { setUserStatus } from "@/actions/user";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
 import { firstParam, type SearchParams } from "@/lib/table-params";
 import { listActivity } from "@/services/activity";
+import { manageableCoursesWhere } from "@/services/course-access";
+import { listEnrolments } from "@/services/learners";
 import { can, getUserDetail, listRoleOptions, requirePermission } from "@/services/user";
 
 export const metadata: Metadata = { title: "User" };
@@ -34,6 +37,11 @@ export default async function UserDetailPage({
   // Activity done by this user; needs activity.view.
   const activity = can(viewer, "activity.view")
     ? await listActivity({ userId: user.id, pageSize: 10 })
+    : null;
+
+  // Courses this user takes; needs enrolment.view.
+  const learning = can(viewer, "enrolment.view")
+    ? await listEnrolments({ userId: user.id, page: 1, pageSize: 5, sort: "activity", order: "desc" }, manageableCoursesWhere(viewer))
     : null;
 
   const isSelf = viewer.id === user.id;
@@ -121,6 +129,39 @@ export default async function UserDetailPage({
           </section>
         </div>
       </div>
+
+      {learning && (
+        <section aria-labelledby="learning" className="mt-6 rounded-xl border bg-white">
+          <div className="flex items-center justify-between gap-3 p-4 sm:px-6">
+            <h2 id="learning" className="text-base font-bold text-slate-900">Learning</h2>
+            <span className="flex gap-4 text-sm font-medium">
+              {can(viewer, "enrolment.manage") && (
+                <Link href={`/admin/enrolments/new?user=${user.id}`} className="text-blue-700 hover:underline">
+                  Assign a course
+                </Link>
+              )}
+              {learning.total > 0 && (
+                <Link href={`/admin/learners/${user.id}`} className="text-blue-700 hover:underline">
+                  View progress
+                </Link>
+              )}
+            </span>
+          </div>
+          {learning.rows.length === 0 ? (
+            <EmptyState title="No courses" description="This user has not joined or been assigned a course." />
+          ) : (
+            <ul className="divide-y border-t">
+              {learning.rows.map((enrolment) => (
+                <li key={enrolment.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 text-sm sm:px-6">
+                  <span className="min-w-0 flex-1 font-medium">{enrolment.course.title}</span>
+                  <EnrolmentStatusBadge status={enrolment.status} />
+                  <ProgressCell percent={enrolment.progressPercent} done={enrolment.lessonsDone} total={enrolment.lessonsTotal} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {activity && (
         <section aria-labelledby="recent" className="mt-6 rounded-xl border bg-white">
