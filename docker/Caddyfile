@@ -1,0 +1,6 @@
+# DOMAIN comes from .env. With a real domain Caddy gets and renews the HTTPS
+# certificate by itself; with ":80" it serves plain HTTP on the server's IP.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
