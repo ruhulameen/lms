@@ -457,6 +457,8 @@ enum LessonType {
   TEXT
   DOCUMENT
   QUIZ
+  // A SCORM 1.2 package, played in a frame: see src/services/scorm.ts.
+  SCORM
 }
 
 enum EnrolmentSource {
@@ -611,6 +613,14 @@ model Lesson {
   fileMimeType    String?          @db.VarChar(100)
   fileSize        BigInt?
   durationSeconds Int?
+  // SCORM lessons: the folder in the private bucket the package was unpacked
+  // into, the page inside it that starts the course, and two values from its
+  // manifest that the package may ask for (fileKey still holds the zip itself).
+  scormPrefix     String?          @db.VarChar(255)
+  scormEntry      String?          @db.VarChar(500)
+  scormMastery    Int?
+  scormLaunchData String?          @db.Text
+  scormStates     ScormState[]
   position        Int
   isFreePreview   Boolean          @default(false)
   // Unpublished lessons are hidden from learners and the public page.
@@ -665,6 +675,7 @@ model Enrolment {
   progressPercent Int              @default(0)
   progress        LessonProgress[]
   quizAttempts    QuizAttempt[]
+  scormStates     ScormState[]
   certificate     Certificate?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -690,6 +701,32 @@ model LessonProgress {
   @@unique([enrolmentId, lessonId])
   @@index([lessonId])
   @@map("lesson_progress")
+}
+
+// What a SCORM package has told us about one learner: where they are, whether
+// they finished, their score, and the package's own saved data (it reads this
+// back to resume). One row per enrolment and lesson.
+model ScormState {
+  id               Int       @id @default(autoincrement())
+  enrolment        Enrolment @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  enrolmentId      Int
+  lesson           Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId         Int
+  // cmi.core.lesson_status: "not attempted", "incomplete", "completed", "passed", "failed", "browsed".
+  lessonStatus     String    @default("not attempted") @db.VarChar(20)
+  lessonLocation   String?   @db.VarChar(1000)
+  scoreRaw         Float?
+  scoreMin         Float?
+  scoreMax         Float?
+  // Opaque to us. The standard says 4096 characters; real packages use far more.
+  suspendData      String?   @db.MediumText
+  totalTimeSeconds Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([enrolmentId, lessonId])
+  @@index([lessonId])
+  @@map("scorm_state")
 }
 
 model CourseReview {

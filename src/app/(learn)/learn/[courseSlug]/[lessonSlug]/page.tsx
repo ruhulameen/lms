@@ -6,6 +6,7 @@ import { CompleteButton } from "@/components/learn/complete-button";
 import { LearnShell } from "@/components/learn/learn-shell";
 import { LessonSidebar } from "@/components/learn/lesson-sidebar";
 import { QuizLesson } from "@/components/learn/quiz-lesson";
+import { ScormPlayer } from "@/components/learn/scorm-player";
 import { VideoPlayer } from "@/components/learn/video-player";
 import { RichText } from "@/components/site/rich-text";
 import { formatLessonDuration, lessonTypeLabels } from "@/lib/course";
@@ -13,7 +14,9 @@ import { isEmptyDocument } from "@/lib/rich-text";
 import { loginHref } from "@/lib/return-path";
 import { cn } from "@/lib/utils";
 import { getPlayerContext, touchLastLesson, type PlayerLesson } from "@/services/learning";
+import { emptyScormProgress } from "@/lib/scorm";
 import { getLessonFileUrl } from "@/services/lesson-access";
+import { getScormLaunch, getScormProgress } from "@/services/scorm";
 import { getCurrentUser } from "@/services/user";
 
 const sizeFormatter = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
@@ -89,6 +92,10 @@ export default async function LessonPage({ params }: PageProps<"/learn/[courseSl
   const needsLink = lesson.hasFile && (lesson.type === "VIDEO" || (lesson.type === "DOCUMENT" && isPdf));
   const link = needsLink ? await getLessonFileUrl(user, lesson.id, { mode: "play" }) : null;
 
+  // A SCORM lesson: where its package starts, and where this learner left it.
+  const scorm = lesson.type === "SCORM" ? await getScormLaunch(lesson.id) : null;
+  const scormProgress = scorm && enrolment ? await getScormProgress(enrolment.id, lesson.id) : emptyScormProgress;
+
   const tracked = enrolment !== null;
   const hasNotes = lesson.content != null && !isEmptyDocument(lesson.content);
   const length = formatLessonDuration(lesson.durationSeconds);
@@ -143,6 +150,21 @@ export default async function LessonPage({ params }: PageProps<"/learn/[courseSl
           <DownloadButton kind="lesson" id={lesson.id} />
         </div>
       </div>
+    );
+  } else if (lesson.type === "SCORM") {
+    body = scorm ? (
+      <ScormPlayer
+        lessonId={lesson.id}
+        title={lesson.title}
+        src={scorm.src}
+        initial={scormProgress}
+        learner={{ id: user?.id ?? 0, name: user?.name ?? "Guest" }}
+        masteryScore={scorm.masteryScore}
+        launchData={scorm.launchData}
+        track={tracked}
+      />
+    ) : (
+      emptyFile("The course package for this lesson has not been added yet.")
     );
   } else {
     body = (
@@ -252,6 +274,10 @@ export default async function LessonPage({ params }: PageProps<"/learn/[courseSl
         {tracked && lesson.mode === "watch" && !lesson.completed && (
           <p className="mb-6 text-center text-xs text-gray-500">This lesson completes when you have watched the video.</p>
         )}
+        {tracked && lesson.mode === "scorm" && !lesson.completed && (
+          <p className="mb-6 text-center text-xs text-gray-500">This lesson completes when you finish the course above. Your place is saved as you go.</p>
+        )}
+        {tracked && lesson.mode === "scorm" && lesson.completed && <p className="mb-6 text-center text-sm font-bold text-green-700">Lesson completed</p>}
         {tracked && lesson.mode === "watch" && lesson.completed && (
           <p className="mb-6 text-center text-sm font-bold text-green-700">Lesson completed</p>
         )}

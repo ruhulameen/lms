@@ -10,7 +10,7 @@ import { LessonResources } from "@/components/admin/lesson-resources";
 import { QuizBuilder } from "@/components/admin/quiz-builder";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
-import { lessonTypeLabels } from "@/lib/course";
+import { lessonNeedsFile, lessonTypeLabels } from "@/lib/course";
 import { parseRouteId } from "@/lib/route-id";
 import { emptyDocumentCopy, sanitizeDocument, type RichTextDocument } from "@/lib/rich-text";
 import { assertCourseAccess } from "@/services/course-access";
@@ -52,7 +52,7 @@ export async function LessonEditorView({ base, params }: { base: string; params:
     }
   }
   const quiz = lesson.type === "QUIZ" ? await getQuizForEdit(courseId, lessonId) : null;
-  const hasFile = lesson.type === "VIDEO" || lesson.type === "DOCUMENT" ? Boolean(lesson.fileName) : null;
+  const hasFile = lessonNeedsFile(lesson.type) ? Boolean(lesson.fileName) : null;
 
   return (
     <>
@@ -111,13 +111,14 @@ export async function LessonEditorView({ base, params }: { base: string; params:
             attemptCount={quiz.attemptCount}
           />
         )}
-        {(lesson.type === "VIDEO" || lesson.type === "DOCUMENT") && (
+        {(lesson.type === "VIDEO" || lesson.type === "DOCUMENT" || lesson.type === "SCORM") && (
           <LessonFileSection
             courseId={courseId}
             lessonId={lessonId}
             type={lesson.type}
             file={lesson.fileName ? { name: lesson.fileName, size: lesson.fileSize ?? 0, mimeType: lesson.fileMimeType ?? "" } : null}
-            previewUrl={fileLink && fileLink.ok ? fileLink.url : null}
+            // A package is not downloaded: it is opened from the lesson preview.
+            previewUrl={lesson.type !== "SCORM" && fileLink && fileLink.ok ? fileLink.url : null}
             canEdit={canEdit}
           />
         )}

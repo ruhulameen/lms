@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, FileText, HelpCircle, Lock, PlayCircle, Type, type LucideIcon } from "lucide-react";
+import { Check, FileText, HelpCircle, Lock, Package, PlayCircle, Type, type LucideIcon } from "lucide-react";
 import { formatLessonDuration, lessonTypeLabels, type LessonTypeValue } from "@/lib/course";
 import { cn } from "@/lib/utils";
 import type { PlayerModule } from "@/services/learning";
@@ -9,6 +9,7 @@ const typeIcons: Record<LessonTypeValue, LucideIcon> = {
   TEXT: Type,
   DOCUMENT: FileText,
   QUIZ: HelpCircle,
+  SCORM: Package,
 };
 
 // Modules and lessons of the course: ticks for finished lessons, the open one

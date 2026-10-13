@@ -11,6 +11,7 @@ import {
   statusFields,
   type ContentStatusValue,
 } from "@/lib/content-status";
+import { lessonNeedsFile } from "@/lib/course";
 import { courseFieldsSchema, courseStatusActivity } from "@/lib/course-form";
 import { db } from "@/lib/db";
 import { formValues, type FormState } from "@/lib/form-state";
@@ -498,7 +499,7 @@ export async function duplicateCourse(formData: FormData): Promise<ActionResult>
         select: { id: true },
       });
       for (const lesson of sourceModule.lessons) {
-        const needsFile = (lesson.type === "VIDEO" || lesson.type === "DOCUMENT") && Boolean(lesson.fileKey);
+        const needsFile = lessonNeedsFile(lesson.type) && Boolean(lesson.fileKey);
         if (needsFile) filesNeeded++;
         const createdLesson = await tx.lesson.create({
           data: {

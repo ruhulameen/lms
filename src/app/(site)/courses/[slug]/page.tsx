@@ -2,7 +2,7 @@ import { TrackEvent } from "@/components/site/tracking";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, FileText, HelpCircle, Lock, PlayCircle, Type, type LucideIcon } from "lucide-react";
+import { Check, FileText, HelpCircle, Lock, Package, PlayCircle, Type, type LucideIcon } from "lucide-react";
 import { addToCart, buyNow } from "@/actions/cart";
 import { enrolInCourse } from "@/actions/enrolment";
 import { CourseCard, CourseImage } from "@/components/site/course-card";
@@ -35,6 +35,7 @@ const lessonIcons: Record<LessonTypeValue, LucideIcon> = {
   TEXT: Type,
   DOCUMENT: FileText,
   QUIZ: HelpCircle,
+  SCORM: Package,
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });

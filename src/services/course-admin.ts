@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import type { ContentStatusValue } from "@/lib/content-status";
-import { courseImageSrc } from "@/lib/course";
+import { courseImageSrc, lessonNeedsFile, type LessonTypeValue } from "@/lib/course";
 import { publicUrl } from "@/lib/storage";
 import { getMediaSummary } from "@/services/media";
 import { getSeo } from "@/services/seo";
@@ -236,11 +236,11 @@ export type CurriculumLessonView = {
   id: number;
   moduleId: number;
   title: string;
-  type: "VIDEO" | "TEXT" | "DOCUMENT" | "QUIZ";
+  type: LessonTypeValue;
   durationSeconds: number | null;
   isFreePreview: boolean;
   published: boolean;
-  // Video and document lessons: whether the file is attached. Text and quiz: null.
+  // Video, document and SCORM lessons: whether the file is attached. Text and quiz: null.
   hasFile: boolean | null;
   resourceCount: number;
   questionCount: number | null;
@@ -265,7 +265,7 @@ export function toCurriculumView(course: NonNullable<Awaited<ReturnType<typeof g
       durationSeconds: l.durationSeconds,
       isFreePreview: l.isFreePreview,
       published: l.published,
-      hasFile: l.type === "VIDEO" || l.type === "DOCUMENT" ? Boolean(l.fileKey) : null,
+      hasFile: lessonNeedsFile(l.type) ? Boolean(l.fileKey) : null,
       resourceCount: l.resources.length,
       questionCount: l.quiz ? l.quiz._count.questions : null,
     })),
@@ -290,6 +290,7 @@ export async function getLessonForEdit(courseId: number, lessonId: number) {
       fileMimeType: true,
       fileSize: true,
       durationSeconds: true,
+      scormEntry: true,
       isFreePreview: true,
       published: true,
       updatedAt: true,

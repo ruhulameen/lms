@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { LessonTypeValue } from "@/lib/course";
+import { lessonNeedsFile, type LessonTypeValue } from "@/lib/course";
 import { LESSON_TITLE_MAX, splitSeconds } from "@/lib/course-form";
 import { initialFormState } from "@/lib/form-state";
 import type { RichTextDocument } from "@/lib/rich-text";
@@ -47,7 +47,7 @@ export function LessonForm({ courseId, lesson, canEdit }: LessonFormProps) {
     if (state.ok && state.message) toast.success(state.message);
   }, [state]);
 
-  const needsFile = lesson.type === "VIDEO" || lesson.type === "DOCUMENT";
+  const needsFile = lessonNeedsFile(lesson.type);
   const hasContent = lesson.type !== "QUIZ";
 
   return (

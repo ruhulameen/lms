@@ -10,15 +10,17 @@ export const VIDEO_COMPLETE_RATIO = 0.9;
 // The player saves the position this often while a video plays.
 export const POSITION_SAVE_INTERVAL_SECONDS = 15;
 
-export type CompletionMode = "watch" | "manual" | "quiz";
+export type CompletionMode = "watch" | "manual" | "quiz" | "scorm";
 
 // How a lesson becomes complete:
 // - watch: a video with a file, automatically at VIDEO_COMPLETE_RATIO;
 // - manual: text and documents, when the learner presses "Mark as complete"
 //   (also a video that has no file yet, which there is nothing to watch for);
-// - quiz: when the quiz is passed (stage 3).
+// - quiz: when the quiz is passed (stage 3);
+// - scorm: when the package reports that it was finished or passed.
 export function completionMode(type: LessonTypeValue, hasFile: boolean): CompletionMode {
   if (type === "QUIZ") return "quiz";
+  if (type === "SCORM") return "scorm";
   if (type === "VIDEO" && hasFile) return "watch";
   return "manual";
 }

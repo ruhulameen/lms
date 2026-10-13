@@ -1,3 +1,6 @@
+import { ScormPlayer } from "@/components/learn/scorm-player";
+import { emptyScormProgress } from "@/lib/scorm";
+import { getScormLaunch } from "@/services/scorm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
@@ -25,7 +28,8 @@ export async function LessonPreviewView({ base, params }: { base: string; params
   ]);
   if (!course || !lesson) notFound();
 
-  const fileLink = lesson.fileName ? await getLessonFileUrl(user, lessonId) : null;
+  const fileLink = lesson.fileName && lesson.type !== "SCORM" ? await getLessonFileUrl(user, lessonId) : null;
+  const scorm = lesson.type === "SCORM" ? await getScormLaunch(lessonId) : null;
   const resources = await Promise.all(
     lesson.resources.map(async (r) => ({ ...r, link: await getLessonResourceUrl(user, r.id) })),
   );
@@ -64,6 +68,25 @@ export async function LessonPreviewView({ base, params }: { base: string; params
               <video controls preload="metadata" src={fileLink.url} className="mb-6 aspect-video w-full rounded-xl bg-black" aria-label="Lesson video" />
             ) : (
               <p className="mb-6 rounded-xl border border-dashed bg-white p-8 text-center text-sm text-gray-500">No video has been uploaded for this lesson.</p>
+            ))}
+
+          {lesson.type === "SCORM" &&
+            (scorm ? (
+              <div className="mb-6">
+                <ScormPlayer
+                  lessonId={lesson.id}
+                  title={lesson.title}
+                  src={scorm.src}
+                  initial={emptyScormProgress}
+                  learner={{ id: user.id, name: user.name }}
+                  masteryScore={scorm.masteryScore}
+                  launchData={scorm.launchData}
+                  track={false}
+                />
+                <p className="mt-2 text-xs text-gray-500">As a learner sees it, starting from the beginning. Nothing you do here is saved.</p>
+              </div>
+            ) : (
+              <p className="mb-6 rounded-xl border border-dashed bg-white p-8 text-center text-sm text-gray-500">No package has been uploaded for this lesson.</p>
             ))}
 
           {lesson.type === "DOCUMENT" &&

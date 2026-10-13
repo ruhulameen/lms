@@ -12,7 +12,7 @@ export const courseLevelLabels: Record<CourseLevelValue, string> = {
   ALL_LEVELS: "All levels",
 };
 
-export const lessonTypes = ["VIDEO", "TEXT", "DOCUMENT", "QUIZ"] as const;
+export const lessonTypes = ["VIDEO", "TEXT", "DOCUMENT", "QUIZ", "SCORM"] as const;
 export type LessonTypeValue = (typeof lessonTypes)[number];
 
 export const lessonTypeLabels: Record<LessonTypeValue, string> = {
@@ -20,7 +20,11 @@ export const lessonTypeLabels: Record<LessonTypeValue, string> = {
   TEXT: "Text",
   DOCUMENT: "Document",
   QUIZ: "Quiz",
+  SCORM: "SCORM package",
 };
+
+// Lesson types whose content is an uploaded file; they cannot be published without it.
+export const lessonNeedsFile = (type: LessonTypeValue) => type === "VIDEO" || type === "DOCUMENT" || type === "SCORM";
 
 export const enrolmentSources = ["FREE", "ADMIN", "ORDER"] as const;
 export const enrolmentStatuses = ["ACTIVE", "COMPLETED", "CANCELLED"] as const;

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { ActionResult } from "@/lib/action-result";
 import { getLessonFileUrl, getLessonResourceUrl, type FileLink } from "@/services/lesson-access";
 import { markLessonCompleteByLearner, saveVideoPosition } from "@/services/learning";
+import { saveScormProgress } from "@/services/scorm";
 import { getCurrentUser } from "@/services/user";
 
 const SIGNED_OUT = "Your session has expired. Sign in again.";
@@ -89,4 +90,20 @@ export async function getDownloadLink(input: z.input<typeof downloadSchema>): Pr
       ? await getLessonFileUrl(user, parsed.data.id, { mode: "download" })
       : await getLessonResourceUrl(user, parsed.data.id);
   return linkResult(link);
+}
+
+const scormSchema = z.object({ lessonId: id, progress: z.unknown() });
+
+export type ScormSaveData = { lessonCompleted: boolean; courseCompleted: boolean };
+
+// Called by the SCORM player whenever the package saves, and when it finishes.
+export async function saveScormLessonProgress(input: z.input<typeof scormSchema>): Promise<ActionResult<ScormSaveData>> {
+  const parsed = scormSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid progress." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: SIGNED_OUT };
+
+  const result = await saveScormProgress(user.id, parsed.data.lessonId, parsed.data.progress);
+  if (!result.ok) return result;
+  return { ok: true, data: { lessonCompleted: result.lessonCompleted, courseCompleted: result.courseCompleted } };
 }

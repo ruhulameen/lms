@@ -403,7 +403,13 @@ export async function markLessonCompleteByLearner(userId: number, lessonId: numb
   if (!found) return { ok: false, error: "You are not enrolled in this course." };
   const mode = completionMode(found.lesson.type, Boolean(found.lesson.fileKey));
   if (mode !== "manual") {
-    return { ok: false, error: mode === "quiz" ? "Pass the quiz to complete this lesson." : "This video completes when you have watched it." };
+    const error =
+      mode === "quiz"
+        ? "Pass the quiz to complete this lesson."
+        : mode === "scorm"
+          ? "This lesson completes when you finish the course inside it."
+          : "This video completes when you have watched it.";
+    return { ok: false, error };
   }
   const update = await completeLessonForEnrolment(found.enrolmentId, lessonId);
   if (!update) return { ok: false, error: "Your enrolment is no longer active." };

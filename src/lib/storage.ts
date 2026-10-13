@@ -1,12 +1,15 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import type { Readable } from "node:stream";
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -99,6 +102,11 @@ export function generateObjectKey(filename: string, now = new Date()) {
   const yyyy = now.getUTCFullYear();
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
   return `media/${yyyy}/${mm}/${randomBytes(8).toString("hex")}-${sanitiseFilename(filename)}`;
+}
+
+// Folder an uploaded SCORM package is unpacked into: lessons/<courseId>/scorm/<random>/.
+export function generateScormPrefix(courseId: number) {
+  return `lessons/${courseId}/scorm/${randomBytes(12).toString("hex")}/`;
 }
 
 // Key of a lesson file: lessons/<courseId>/<random>-<name>. The course id keeps
@@ -237,6 +245,45 @@ export const privateStorage = {
   headObject: (key: string) => head(privateBucket(), key),
   readObjectHead: (key: string, length: number) => readHead(privateBucket(), key, length),
   deleteObject: (key: string) => remove(privateBucket(), key),
+
+  // The three below are for unpacked SCORM packages, the only files the server
+  // itself writes and reads back (everything else goes browser <-> storage).
+
+  // Stores a file from the server. `body` is a buffer, or a stream with its length.
+  async putObject(key: string, body: Buffer | Readable, contentType: string, length?: number) {
+    await s3().send(new PutObjectCommand({ Bucket: privateBucket(), Key: key, Body: body, ContentType: contentType, ContentLength: length }));
+  },
+
+  // A stored file as a stream, or null when it does not exist. `range` is a
+  // Range header value passed through for video seeking.
+  async getObject(key: string, range?: string) {
+    try {
+      const result = await s3().send(new GetObjectCommand({ Bucket: privateBucket(), Key: key, Range: range }));
+      if (!result.Body) return null;
+      return {
+        body: result.Body as Readable & { transformToWebStream(): ReadableStream },
+        size: result.ContentLength ?? null,
+        contentRange: result.ContentRange ?? null,
+        etag: result.ETag ?? null,
+      };
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if (status === 404 || status === 416) return null;
+      throw error;
+    }
+  },
+
+  // Deletes every file whose key starts with `prefix` (a folder, ending in "/").
+  async deletePrefix(prefix: string) {
+    if (!prefix.endsWith("/")) throw new Error("A prefix to delete must end with a slash.");
+    let token: string | undefined;
+    do {
+      const page = await s3().send(new ListObjectsV2Command({ Bucket: privateBucket(), Prefix: prefix, ContinuationToken: token }));
+      const keys = (page.Contents ?? []).flatMap((object) => (object.Key ? [{ Key: object.Key }] : []));
+      if (keys.length > 0) await s3().send(new DeleteObjectsCommand({ Bucket: privateBucket(), Delete: { Objects: keys, Quiet: true } }));
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+  },
 
   // A signed GET link. `filename` sets the name a download is saved under;
   // `inline` lets the browser show the file (video, PDF) instead of saving it.

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import type { ActionResult } from "@/lib/action-result";
-import { lessonTypes } from "@/lib/course";
+import { lessonNeedsFile, lessonTypes } from "@/lib/course";
 import { curriculumOrderSchema, lessonFieldsSchema, moduleFieldsSchema, resourceTitleSchema, type CurriculumOrder } from "@/lib/course-form";
 import { db } from "@/lib/db";
 import { formValues, type FormState } from "@/lib/form-state";
@@ -15,6 +15,7 @@ import { logActivity } from "@/services/activity";
 import { authorizeCourseAction } from "@/services/course-access";
 import { recalculateCourseProgress } from "@/services/learning";
 import { readLessonFileToken, removeLessonFile } from "@/services/lesson-file";
+import { removeScormFiles, unpackScormPackage } from "@/services/scorm-package";
 
 // Curriculum edits: modules, lessons, lesson files and resources. Every action
 // re-checks the course (course.edit and ownership) and that the ids it is given
@@ -222,7 +223,7 @@ export async function updateLesson(_prev: FormState, formData: FormData): Promis
   if (await db.lesson.findFirst({ where: { courseId: courseId.data, slug: data.slug, id: { not: lessonId.data } }, select: { id: true } })) {
     return fail(formData, "Another lesson in this course already uses this slug.", "slug");
   }
-  if (data.published && (lesson.type === "VIDEO" || lesson.type === "DOCUMENT") && !lesson.fileKey) {
+  if (data.published && lessonNeedsFile(lesson.type) && !lesson.fileKey) {
     return fail(formData, "Upload the file before publishing this lesson.", "published");
   }
   if (data.published && lesson.type === "QUIZ" && (await db.question.count({ where: { quiz: { lessonId: lessonId.data } } })) === 0) {
@@ -268,7 +269,7 @@ export async function deleteLesson(formData: FormData): Promise<ActionResult> {
 
   const lesson = await db.lesson.findFirst({
     where: { id: lessonId.data, courseId: courseId.data },
-    select: { title: true, moduleId: true, published: true, fileKey: true, resources: { select: { fileKey: true } } },
+    select: { title: true, moduleId: true, published: true, fileKey: true, scormPrefix: true, resources: { select: { fileKey: true } } },
   });
   if (!lesson) return { ok: false, error: NOT_FOUND_LESSON };
   const keys = [lesson.fileKey, ...lesson.resources.map((r) => r.fileKey)].filter((k): k is string => Boolean(k));
@@ -279,6 +280,7 @@ export async function deleteLesson(formData: FormData): Promise<ActionResult> {
     await repackLessons(tx, lesson.moduleId);
   });
   await Promise.all(keys.map((key) => removeLessonFile(key)));
+  await removeScormFiles(lesson.scormPrefix);
   await logActivity({
     userId: authz.user.id,
     action: "lesson.delete",
@@ -310,15 +312,55 @@ export async function attachLessonFile(input: z.input<typeof attachSchema>): Pro
   const authz = await authorizeCourseAction(courseId, "course.edit");
   if (!authz.ok) return authz.result;
 
-  const lesson = await db.lesson.findFirst({ where: { id: lessonId, courseId }, select: { title: true, type: true, fileKey: true } });
+  const lesson = await db.lesson.findFirst({ where: { id: lessonId, courseId }, select: { title: true, type: true, fileKey: true, scormPrefix: true } });
   if (!lesson) return { ok: false, error: NOT_FOUND_LESSON };
-  if (lesson.type !== "VIDEO" && lesson.type !== "DOCUMENT") return { ok: false, error: "This lesson type has no file." };
+  if (!lessonNeedsFile(lesson.type)) return { ok: false, error: "This lesson type has no file." };
   const file = readLessonFileToken(fileToken, courseId);
   if (!file) return { ok: false, error: EXPIRED };
+  if (lesson.fileKey === file.key) return { ok: true, message: "File saved." };
+
+  if (lesson.type === "SCORM") {
+    // The zip is checked and unpacked now; a package that is not SCORM 1.2 is
+    // refused and thrown away, and the lesson keeps what it had.
+    const unpacked = file.mimeType.includes("zip") ? await unpackScormPackage(courseId, file.key) : { ok: false as const, error: "Upload the SCORM package as a .zip file." };
+    if (!unpacked.ok) {
+      await removeLessonFile(file.key);
+      return { ok: false, error: unpacked.error };
+    }
+    const { prefix, manifest, fileCount } = unpacked.data;
+    await db.$transaction([
+      db.lesson.update({
+        where: { id: lessonId },
+        data: {
+          fileKey: file.key,
+          fileName: file.filename,
+          fileMimeType: file.mimeType,
+          fileSize: BigInt(file.size),
+          scormPrefix: prefix,
+          scormEntry: manifest.entry,
+          scormMastery: manifest.masteryScore,
+          scormLaunchData: manifest.launchData,
+        },
+      }),
+      // A different package cannot read the old one's saved data, so learners start it afresh.
+      ...(lesson.scormPrefix ? [db.scormState.deleteMany({ where: { lessonId } })] : []),
+    ]);
+    await removeLessonFile(lesson.fileKey);
+    await removeScormFiles(lesson.scormPrefix);
+    await logActivity({
+      userId: authz.user.id,
+      action: "lesson.update",
+      entity: "lesson",
+      entityId: lessonId,
+      details: { title: lesson.title, fields: ["scorm package"], course: await courseTitle(courseId) },
+    });
+    refreshCourses();
+    return { ok: true, message: `Package "${manifest.title}" added (${fileCount} files).` };
+  }
+
   if (file.kind !== lesson.type) {
     return { ok: false, error: lesson.type === "VIDEO" ? "Upload a video file." : "Upload a document, not a video." };
   }
-  if (lesson.fileKey === file.key) return { ok: true, message: "File saved." };
 
   await db.lesson.update({
     where: { id: lessonId },
@@ -350,14 +392,15 @@ export async function detachLessonFile(input: { courseId: number; lessonId: numb
   const authz = await authorizeCourseAction(courseId, "course.edit");
   if (!authz.ok) return authz.result;
 
-  const lesson = await db.lesson.findFirst({ where: { id: lessonId, courseId }, select: { title: true, fileKey: true, published: true } });
+  const lesson = await db.lesson.findFirst({ where: { id: lessonId, courseId }, select: { title: true, fileKey: true, scormPrefix: true, published: true } });
   if (!lesson) return { ok: false, error: NOT_FOUND_LESSON };
   if (!lesson.fileKey) return { ok: true, message: "There is no file." };
   await db.lesson.update({
     where: { id: lessonId },
-    data: { fileKey: null, fileName: null, fileMimeType: null, fileSize: null, published: false },
+    data: { fileKey: null, fileName: null, fileMimeType: null, fileSize: null, scormPrefix: null, scormEntry: null, scormMastery: null, scormLaunchData: null, published: false },
   });
   await removeLessonFile(lesson.fileKey);
+  await removeScormFiles(lesson.scormPrefix);
   await logActivity({
     userId: authz.user.id,
     action: "lesson.update",

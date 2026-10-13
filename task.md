@@ -54,6 +54,29 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## SCORM lessons (2026-10-13)
+
+Decided by the owner: play SCORM packages rather than rebuild their content. Built as a fifth lesson type, so a package can be a whole course (one lesson) or one lesson among videos, text and quizzes. SCORM 1.2 only.
+
+- [x] Lesson type "SCORM package": the zip is uploaded in the lesson editor like a video or document (up to 500 MB), checked (a manifest at the top of the zip, SCORM 1.2, one start page, no unsafe paths, at most 5,000 files and 1 GB unpacked) and unpacked into its own folder of the private bucket.
+- [x] `/scorm/<lessonId>/...` serves the package's files from the site's own address, with the same access rule as any lesson file.
+- [x] The player gives the package the SCORM 1.2 API and saves what it reports per learner (`scorm_state`): status, score, the page they are on, the package's own resume data, time spent.
+- [x] The lesson is ticked off when the package reports "completed" or "passed"; "failed" leaves it open. A pass mark in the manifest is applied when the package leaves the verdict to the LMS. Once done it stays done.
+- [x] Staff preview plays the package without saving. Replacing a package clears learners' place in the old one; deleting the lesson or the package deletes its files.
+- [x] Unit tests for the manifest, path safety and progress rules. Checked with the owner's file (Articulate Rise, "Time Management", 104 files): unpacked in 7 seconds, plays in the preview and the learner player, progress saved, a reload resumed on the same page, and "completed" ticked the lesson and took the course to 100%.
+
+### Left to do
+
+- The upload button itself was not clicked: the browser tool could not read the Downloads folder, so the package was attached by a script calling the same unpacking code. Browser uploads to the private bucket also still need the "Allow uploads" rule (Settings > File storage).
+- The real "completed" signal from the package was not reached (it needs all 8 of its lessons worked through); completion was tested by sending the same call the package makes.
+- A package runs its own code on the site's address, inside the learner's session. Only people with course edit rights can upload one; they must trust where it came from.
+- Unpacking happens inside the upload request. A very large package could run past the web server's time limit (60 seconds by default in Nginx); it would then need to move to a background job.
+- Every package file is checked and passed through the app, which is slower than files straight from storage. Fine for now; a signed-cookie or CDN route would be the next step if packages feel slow.
+- Not supported: SCORM 2004, xAPI/cmi5, packages with several separate parts, per-question results (interactions are accepted but not stored).
+- The Courses report does not yet show SCORM scores or time spent.
+- A duplicated course gets its SCORM lessons without the package (hidden until one is uploaded), like video lessons.
+- The draft course "Time Management" (id 32) with this package now exists locally; it has no price, description, category or thumbnail yet.
+
 ## Tracking, pixels and reports (2026-10-13)
 
 Decided by the owner: server-side purchase tracking for accuracy, a cookie consent banner, and all four report groups. Left to my recommendation: all six platforms as ID fields, tracking before reports, no traffic analytics of our own (that is Google Analytics' job).

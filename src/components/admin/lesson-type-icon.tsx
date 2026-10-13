@@ -1,4 +1,4 @@
-import { FileText, HelpCircle, PlayCircle, Type, type LucideIcon } from "lucide-react";
+import { FileText, HelpCircle, Package, PlayCircle, Type, type LucideIcon } from "lucide-react";
 import type { LessonTypeValue } from "@/lib/course";
 
 export const lessonTypeIcons: Record<LessonTypeValue, LucideIcon> = {
@@ -6,4 +6,5 @@ export const lessonTypeIcons: Record<LessonTypeValue, LucideIcon> = {
   TEXT: Type,
   DOCUMENT: FileText,
   QUIZ: HelpCircle,
+  SCORM: Package,
 };

@@ -5,13 +5,15 @@ import { MB, allowedTypes, fileExtension, formatBytes } from "@/lib/media-types"
 // Images are not accepted here: thumbnails go through the media library.
 
 // What a file is for. All four use the same upload actions.
-export const lessonFilePurposes = ["lesson-video", "lesson-document", "lesson-resource", "intro-video"] as const;
+export const lessonFilePurposes = ["lesson-video", "lesson-document", "lesson-resource", "intro-video", "lesson-scorm"] as const;
 export type LessonFilePurpose = (typeof lessonFilePurposes)[number];
 
 export type LessonFileKind = "VIDEO" | "DOCUMENT";
 
 const VIDEO_MAX = 2048 * MB;
 const DOCUMENT_MAX = 50 * MB;
+// Kept equal to SCORM_MAX_ZIP_BYTES in src/lib/scorm.ts (not imported: that file pulls in an XML parser the browser does not need).
+const SCORM_MAX_ZIP_BYTES = 500 * MB;
 
 type Rule = { kind: LessonFileKind; mime: string; extensions: string[]; maxSize: number };
 
@@ -29,7 +31,14 @@ const documentRules: Rule[] = [
   { kind: "DOCUMENT", mime: "application/x-zip-compressed", extensions: ["zip"], maxSize: DOCUMENT_MAX },
 ];
 
+// A SCORM package is a zip, and may be far larger than a document.
+const scormRules: Rule[] = [
+  { kind: "DOCUMENT", mime: "application/zip", extensions: ["zip"], maxSize: SCORM_MAX_ZIP_BYTES },
+  { kind: "DOCUMENT", mime: "application/x-zip-compressed", extensions: ["zip"], maxSize: SCORM_MAX_ZIP_BYTES },
+];
+
 export function lessonFileRules(purpose: LessonFilePurpose) {
+  if (purpose === "lesson-scorm") return scormRules;
   return purpose === "lesson-video" || purpose === "intro-video" ? videoRules : documentRules;
 }
 
@@ -62,6 +71,7 @@ export function lessonFileAccept(purpose: LessonFilePurpose) {
 }
 
 export function lessonFileLimitsText(purpose: LessonFilePurpose) {
+  if (purpose === "lesson-scorm") return "A SCORM 1.2 package (.zip) up to 500 MB.";
   return lessonFileRules(purpose)[0].kind === "VIDEO"
     ? "MP4 or WebM video up to 2 GB."
     : "PDF, Office, text or zip files up to 50 MB.";
