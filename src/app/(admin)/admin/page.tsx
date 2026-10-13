@@ -6,12 +6,9 @@ import {
   GraduationCap,
   type LucideIcon,
   MessageSquareWarning,
-  Plus,
   ReceiptText,
   RotateCcw,
-  Shield,
   ShoppingCart,
-  SquarePen,
   TrendingUp,
   UserPlus,
   Users,
@@ -25,7 +22,6 @@ import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
 import { formatDateInput, formatRangeDates, parseDateRange } from "@/lib/date-range";
 import { currencySymbol, formatCount } from "@/lib/format";
@@ -118,33 +114,20 @@ export default async function AdminDashboardPage({
   const per = range.bucket === "month" ? "month" : "day";
   const lastDay = new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate() - 1);
 
-  const quickActions = [
-    can(user, "post.create") && { href: "/admin/blog/new", label: "New post", icon: SquarePen },
-    can(user, "user.create") && { href: "/admin/employees/new", label: "New employee", icon: Plus },
-    can(user, "role.manage") && { href: "/admin/roles/new", label: "New role", icon: Shield },
-  ].filter((a) => a !== false);
-
   return (
     <>
       <PageHeader
         title="Dashboard"
         description={`Welcome back, ${user.name}. Showing ${formatRangeDates(range.from, range.to)}.`}
         actions={
-          <>
-            {quickActions.map((a) => (
-              <Button key={a.href} variant="outline" className="h-10 bg-white" render={<Link href={a.href} />}>
-                <a.icon aria-hidden /> {a.label}
-              </Button>
-            ))}
-            <DateRangePicker
-              // Remounts when the range changes, so the calendar opens on the new dates.
-              key={`${range.preset}-${formatDateInput(range.from)}-${formatDateInput(lastDay)}`}
-              basePath="/admin"
-              preset={range.preset}
-              from={formatDateInput(range.from)}
-              to={formatDateInput(lastDay)}
-            />
-          </>
+          <DateRangePicker
+            // Remounts when the range changes, so the calendar opens on the new dates.
+            key={`${range.preset}-${formatDateInput(range.from)}-${formatDateInput(lastDay)}`}
+            basePath="/admin"
+            preset={range.preset}
+            from={formatDateInput(range.from)}
+            to={formatDateInput(lastDay)}
+          />
         }
       />
 

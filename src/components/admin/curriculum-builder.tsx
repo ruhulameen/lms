@@ -32,7 +32,7 @@ import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { LessonDialog, ModuleDialog } from "@/components/admin/curriculum-dialogs";
 import { lessonTypeIcons } from "@/components/admin/lesson-type-icon";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatLessonDuration, lessonTypeLabels } from "@/lib/course";
 import type { CurriculumLessonView, CurriculumModuleView } from "@/services/course-admin";
 import { cn } from "@/lib/utils";
@@ -439,12 +439,14 @@ function LessonRow({ courseId, basePath, lesson, isFirst, isLast, otherModules, 
                 <MoreHorizontal aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Move to module</DropdownMenuLabel>
-                {otherModules.map((m) => (
-                  <DropdownMenuItem key={m.id} onClick={() => onMoveToModule(m.id)}>
-                    {m.title}
-                  </DropdownMenuItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Move to module</DropdownMenuLabel>
+                  {otherModules.map((m) => (
+                    <DropdownMenuItem key={m.id} onClick={() => onMoveToModule(m.id)}>
+                      {m.title}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

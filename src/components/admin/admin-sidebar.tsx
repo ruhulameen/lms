@@ -16,6 +16,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -41,7 +42,7 @@ type AdminSidebarProps = {
 };
 
 const rowClassName =
-  "h-10 gap-3 px-3 text-sidebar-foreground/75 group-data-[collapsible=icon]:mx-auto data-active:bg-sidebar-primary/20 data-active:text-sidebar-accent-foreground";
+  "h-10 cursor-pointer gap-3 px-3 text-sidebar-foreground/75 group-data-[collapsible=icon]:mx-auto data-active:bg-sidebar-primary/20 data-active:text-sidebar-accent-foreground";
 
 function isGroup(
   entry: AdminNavLinkView | AdminNavGroupView,
@@ -122,23 +123,27 @@ function NavGroup({
             <span>{group.label}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-56">
-            <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-            {group.items.map((item) =>
-              item.href ? (
-                <DropdownMenuItem
-                  key={item.label}
-                  render={<Link href={item.href} />}
-                >
-                  {item.icon}
-                  {item.label}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem key={item.label} disabled>
-                  {item.icon}
-                  {item.label}
-                </DropdownMenuItem>
-              ),
-            )}
+            {/* The label must sit inside a group: Base UI throws otherwise. */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+              {group.items.map((item) =>
+                item.href ? (
+                  <DropdownMenuItem
+                    key={item.label}
+                    className="cursor-pointer"
+                    render={<Link href={item.href} />}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem key={item.label} disabled>
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                ),
+              )}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
