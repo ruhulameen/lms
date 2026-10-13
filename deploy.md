@@ -135,7 +135,7 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-On its first start the app container applies the database migrations, creates the roles and the admin account, builds the site (a minute or two; needs about 2 GB of memory) and then serves it. It is ready when the log says `serving on port 3000`.
+On its first start the app container applies the database migrations, creates the roles and the admin account, builds the site (under a minute on a fast machine, longer on a small VPS; needs about 2 GB of memory) and then serves it. It is ready when the log says `serving on port 3000`.
 
 Then:
 
@@ -156,7 +156,17 @@ Set up the Stripe webhook as in step 9 below, put its signing secret in `.env`, 
 | Back up the database | `docker compose exec db sh -c 'mariadb-dump --single-transaction -uroot -p"$MARIADB_ROOT_PASSWORD" lms' \| gzip > lms-$(date +%F).sql.gz` |
 | Start again from an empty database | `docker compose down -v` — this deletes every account, order and course |
 
-An update rebuilds the site inside the new container, so the site is down for the minute or two that takes.
+An update rebuilds the site inside the new container, so the site is down while that runs (about half a minute on a fast machine).
+
+### A5. Trying it on your own computer
+
+Keep your `pnpm dev` settings in `.env` and put the Docker ones in a second file, `.env.docker`: a copy of `.env` plus `DOMAIN=:80`, the two database passwords, `ENV_FILE=.env.docker`, and `SMTP_HOST=` left empty so no real email is sent. If port 80 is taken, add `HTTP_PORT=8080` and `HTTPS_PORT=8443` and set `BETTER_AUTH_URL=http://localhost:8080`.
+
+```bash
+docker compose --env-file .env.docker -p lms-trial up -d --build
+# open http://localhost:8080
+docker compose --env-file .env.docker -p lms-trial down -v     # remove it again, database included
+```
 
 ## Option B — By hand
 
@@ -381,7 +391,7 @@ Copy the dumps off the server as well (to R2 or another machine): a backup on th
 
 - **No scheduled jobs yet.** Two tasks have no trigger of their own: closing unpaid orders after they expire (it happens when someone opens or pays the order) and retrying failed emails (it happens when the next email is sent). Until a scheduled job is added, a quiet site can leave both waiting.
 - **Highcharts licence.** The admin charts use Highcharts, which needs a paid licence on a commercial site.
-- **Docker updates have downtime.** The Compose setup builds the site when the container starts, so each update takes the site down for a minute or two. Fine for beta; for production, build inside the image instead.
+- **Docker updates have downtime.** The Compose setup builds the site when the container starts, so each update takes the site down for about half a minute to a couple of minutes, depending on the server. Fine for beta; for production, build inside the image instead.
 - **One server, one process.** This guide runs a single Node process, which is enough for a small site. Sessions, rate limits and the email queue are all kept in the database, so running several processes later needs no extra service.
 
 ## Troubleshooting
