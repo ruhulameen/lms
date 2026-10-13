@@ -8,6 +8,7 @@ const paths: Record<SettingGroup, string> = {
   payment: "/admin/settings/payments",
   email: "/admin/settings/email",
   storage: "/admin/settings/storage",
+  tracking: "/admin/settings/tracking",
 };
 
 // Links between the settings screens; `active` marks the current one.

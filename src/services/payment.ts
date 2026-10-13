@@ -16,6 +16,7 @@ import {
 import { sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings-store";
+import { reportPurchase } from "@/services/tracking";
 import { canTakePayments, getStripe, isStripeConfigured } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
 import { notify } from "@/services/notification";
@@ -394,6 +395,7 @@ async function markPaid(paymentId: number, orderId: number, session: Stripe.Chec
       details: { orderNumber: result.orderNumber, totalPence: paidPence },
     });
     await sendOrderConfirmedEmail(orderId);
+    await reportPurchase(orderId);
   }
 }
 

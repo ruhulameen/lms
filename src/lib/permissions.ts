@@ -90,6 +90,13 @@ export const permissionGroups = [
     ],
   },
   {
+    key: "analytics",
+    label: "Reports",
+    permissions: [
+      { key: "analytics.view", label: "View reports", description: "See the sales, course, learner and marketing reports and download them" },
+    ],
+  },
+  {
     key: "settings",
     label: "Settings",
     permissions: [

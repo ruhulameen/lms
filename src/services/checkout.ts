@@ -16,6 +16,7 @@ import { getSettings } from "@/lib/settings-store";
 import { canTakePayments } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
 import { getPricedCart } from "@/services/cart";
+import { readAttribution, readTrackingContext } from "@/services/tracking";
 import { evaluateCoupon, reserveCouponUse } from "@/services/coupon";
 import { addOrderEvent, fulfilOrder } from "@/services/order";
 import { cancelPendingOrder, markFreeOrderPaid, sendOrderConfirmedEmail, startStripePayment } from "@/services/payment";
@@ -125,6 +126,9 @@ export async function placeOrder(user: CurrentUser, billing: BillingDetails): Pr
   const free = isFreeOrder(pricing.totalPence);
   if (!free && !canTakePayments()) return { ok: false, error: "Payments are not available at the moment." };
 
+  // Read here, while the buyer's browser is on the line; stored with the order.
+  const [attribution, trackingContext] = await Promise.all([readAttribution(), readTrackingContext()]);
+
   const signature = orderSignature({
     courseIds: cart.lines.map((l) => l.courseId),
     couponCode,
@@ -185,6 +189,8 @@ export async function placeOrder(user: CurrentUser, billing: BillingDetails): Pr
             couponCode,
             ...billingColumns(billing),
             email: user.email,
+            attribution,
+            trackingContext,
             expiresAt: orderExpiryDate(new Date(), getSettings().payment.orderExpiryMinutes),
             items: {
               create: pricing.lines.map((line, i) => ({

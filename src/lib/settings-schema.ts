@@ -9,7 +9,7 @@ import { type CurrencyCode, DEFAULT_CURRENCY, isCurrencyCode } from "@/lib/forma
 // (Stripe, SMTP, R2), an empty setting falls back to the .env value, so a
 // server set up that way keeps working until the screens are filled in.
 
-export const settingGroups = ["site", "certificate", "payment", "email", "storage"] as const;
+export const settingGroups = ["site", "certificate", "payment", "email", "storage", "tracking"] as const;
 export type SettingGroup = (typeof settingGroups)[number];
 
 export const settingGroupLabels: Record<SettingGroup, string> = {
@@ -18,6 +18,7 @@ export const settingGroupLabels: Record<SettingGroup, string> = {
   payment: "Payments",
   email: "Email",
   storage: "File storage",
+  tracking: "Tracking",
 };
 
 export const settingDefaults = {
@@ -77,6 +78,22 @@ export const settingDefaults = {
     publicUrl: "",
     privateBucket: "",
   },
+  tracking: {
+    // Ask visitors before any tag loads. Only switch off where the law does not ask for it.
+    consentBanner: true,
+    gtmId: "",
+    ga4Id: "",
+    // With it, purchases are also reported to Google Analytics from the server.
+    ga4ApiSecret: "",
+    metaPixelId: "",
+    // With it, purchases are also reported to Meta from the server (Conversions API).
+    metaAccessToken: "",
+    metaTestEventCode: "",
+    googleAdsId: "",
+    googleAdsPurchaseLabel: "",
+    tiktokPixelId: "",
+    linkedinPartnerId: "",
+  },
 };
 
 export type StoredSettings = typeof settingDefaults;
@@ -88,6 +105,7 @@ export const secretFields = {
   payment: ["stripeSecretKey", "stripeWebhookSecret"],
   email: ["smtpPassword"],
   storage: ["secretAccessKey"],
+  tracking: ["ga4ApiSecret", "metaAccessToken"],
 } as const satisfies { [G in SettingGroup]: readonly (keyof StoredSettings[G])[] };
 
 export const ORDER_EXPIRY_MIN_MINUTES = 30;
@@ -140,6 +158,7 @@ export type Settings = {
     publicUrl: string;
     privateBucket: string;
   };
+  tracking: StoredSettings["tracking"];
   sources: {
     stripeSecretKey: SettingSource;
     stripeWebhookSecret: SettingSource;
@@ -186,6 +205,7 @@ export function resolveSettings(rows: Rows, env: Env, open: (sealed: string) => 
   const payment = storedGroup("payment", rows.payment);
   const email = storedGroup("email", rows.email);
   const storage = storedGroup("storage", rows.storage);
+  const tracking = storedGroup("tracking", rows.tracking);
   const secret = (sealed: string) => (sealed ? (open(sealed) ?? "") : "");
 
   // Each Stripe key on its own: the admin value, else the .env one.
@@ -259,6 +279,7 @@ export function resolveSettings(rows: Rows, env: Env, open: (sealed: string) => 
     },
     email: { from, replyTo: email.replyTo, smtp },
     storage: resolvedStorage,
+    tracking: { ...tracking, ga4ApiSecret: secret(tracking.ga4ApiSecret), metaAccessToken: secret(tracking.metaAccessToken) },
     sources: {
       stripeSecretKey: stripeSecretKeySource,
       stripeWebhookSecret: stripeWebhookSecretSource,

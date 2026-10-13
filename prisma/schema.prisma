@@ -28,6 +28,8 @@ model User {
   twoFactorEnabled    Boolean            @default(false)
   // Public author bio shown on blog posts.
   bio                 String?            @db.Text
+  // Where the person came from when they signed up (campaign, referrer).
+  attribution         Json?
   role                Role?              @relation(fields: [roleId], references: [id])
   roleId              Int?
   sessions            Session[]
@@ -236,7 +238,7 @@ model EmailOutbox {
 }
 
 // Site settings edited at /admin/settings: one row per group ("site",
-// "certificate", "payment", "email", "storage"), the fields as JSON. Secret
+// "certificate", "payment", "email", "storage", "tracking"), the fields as JSON. Secret
 // fields are stored encrypted (src/lib/secret-box.ts). A missing row or field
 // means the default, see src/lib/settings-schema.ts.
 model Setting {
@@ -896,6 +898,14 @@ model Order {
   cancelledAt             DateTime?
   // A pending order past this time is treated as expired (cancelled by the sweep).
   expiresAt               DateTime?
+  // Where the buyer came from (campaign, referrer), copied from their browser
+  // when the order was placed: see src/lib/tracking.ts.
+  attribution             Json?
+  // What the server-side purchase event needs (browser ids, IP, user agent).
+  // Only filled when the buyer agreed to tracking; see src/services/tracking.ts.
+  trackingContext         Json?
+  // Set once the purchase was reported to the ad platforms, so it is sent once.
+  purchaseTrackedAt       DateTime?
   items                   OrderItem[]
   payments                Payment[]
   refunds                 Refund[]

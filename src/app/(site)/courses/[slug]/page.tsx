@@ -1,3 +1,4 @@
+import { TrackEvent } from "@/components/site/tracking";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -92,6 +93,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
 
   return (
     <>
+      <TrackEvent payload={{ event: "view_item", value: course.price, items: [{ id: String(course.id), name: course.title, price: course.price, category: course.category ?? undefined }] }} />
       <div className="border-b border-gray-100 bg-white">
         <nav
           aria-label="Breadcrumb"

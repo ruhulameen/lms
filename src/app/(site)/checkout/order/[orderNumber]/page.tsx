@@ -1,3 +1,4 @@
+import { TrackEvent } from "@/components/site/tracking";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -89,6 +90,19 @@ export default async function CheckoutOrderPage({
     return (
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <ClearCart orderNumber={order.orderNumber} />
+        {/* Only straight after paying, and once per browser: the server reports the sale as well. */}
+        {query.paid && totalPence > 0 && (
+          <TrackEvent
+            once={`purchase-${order.orderNumber}`}
+            payload={{
+              event: "purchase",
+              orderNumber: order.orderNumber,
+              value: totalPence / 100,
+              coupon: order.couponCode ?? undefined,
+              items: order.items.map((item) => ({ id: String(item.courseId), name: item.courseTitle, price: Number(item.total) })),
+            }}
+          />
+        )}
         <div className={cardClassName}>
           <div className="mb-6 text-center">
             <CheckCircle2

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
+import { CookieSettingsButton } from "@/components/site/tracking";
 import { getSettings } from "@/lib/settings-store";
+import { hasAnyTag } from "@/lib/tracking";
+import { getPublicTracking } from "@/services/tracking";
 
 const columns = [
   {
@@ -36,6 +39,7 @@ const columns = [
 
 export function SiteFooter() {
   const site = getSettings().site;
+  const tracking = getPublicTracking();
   const contact = [site.contactEmail, site.contactPhone, site.address].filter(Boolean);
   return (
     <footer className="mt-auto bg-navy pt-16 pb-8 text-gray-300">
@@ -87,6 +91,11 @@ export function SiteFooter() {
           <p>
             © {new Date().getFullYear()} {site.name}. All rights reserved.
           </p>
+          {tracking.consentBanner && hasAnyTag(tracking) && (
+            <p className="mt-2">
+              <CookieSettingsButton className="cursor-pointer underline-offset-2 transition hover:text-white hover:underline" />
+            </p>
+          )}
           {site.social.length > 0 && (
             <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 sm:justify-start">
               {site.social.map((link) => (

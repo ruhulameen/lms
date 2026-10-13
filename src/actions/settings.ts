@@ -205,6 +205,42 @@ export async function saveStorageSettings(_prev: FormState, formData: FormData):
   return { ok: true, message: SAVED, values: echo("storage", formData) };
 }
 
+// ---------------------------------------------------------------- tracking
+
+// An id as the platform shows it, or empty. Ids end up in script addresses, so
+// each is held to its exact shape.
+const tagId = (pattern: RegExp, message: string) =>
+  z
+    .string()
+    .trim()
+    .max(64)
+    .refine((value) => value === "" || pattern.test(value), message);
+
+const trackingSchema = z.object({
+  consentBanner: checkbox,
+  gtmId: tagId(/^GTM-[A-Z0-9]+$/, "A Tag Manager ID looks like GTM-ABC1234."),
+  ga4Id: tagId(/^G-[A-Z0-9]+$/, "A Google Analytics ID looks like G-ABC123DEF4."),
+  metaPixelId: tagId(/^\d{6,20}$/, "A Meta Pixel ID is a number of about 15 digits."),
+  metaTestEventCode: tagId(/^TEST\d+$/, "A test event code looks like TEST12345."),
+  googleAdsId: tagId(/^AW-\d+$/, "A Google Ads ID looks like AW-123456789."),
+  googleAdsPurchaseLabel: tagId(/^[\w-]+$/, "The label is the part after the slash in AW-123456789/AbC-D_efG."),
+  tiktokPixelId: tagId(/^[A-Z0-9]{10,30}$/i, "A TikTok Pixel ID is about 20 letters and numbers."),
+  linkedinPartnerId: tagId(/^\d+$/, "A LinkedIn partner ID is a number."),
+});
+
+export async function saveTrackingSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  const authz = await authorizeAction("settings.manage");
+  if (!authz.ok) return { ...authz.result, values: echo("tracking", formData) };
+  const parsed = trackingSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return invalid("tracking", parsed.error, formData);
+
+  await saveSettingGroup("tracking", parsed.data, {
+    secrets: { ga4ApiSecret: secretChange(formData, "ga4ApiSecret"), metaAccessToken: secretChange(formData, "metaAccessToken") },
+    userId: authz.user.id,
+  });
+  return { ok: true, message: SAVED, values: echo("tracking", formData) };
+}
+
 // ---------------------------------------------------------------- checks
 
 async function runCheck(check: (user: { email: string }) => Promise<CheckResult>): Promise<ActionResult> {

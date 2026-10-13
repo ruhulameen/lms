@@ -54,6 +54,41 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## Tracking, pixels and reports (2026-10-13)
+
+Decided by the owner: server-side purchase tracking for accuracy, a cookie consent banner, and all four report groups. Left to my recommendation: all six platforms as ID fields, tracking before reports, no traffic analytics of our own (that is Google Analytics' job).
+
+### Tracking
+
+- [x] Settings > Tracking: Meta Pixel, Google Analytics 4, Google Ads, TikTok, LinkedIn and Google Tag Manager IDs; the Meta Conversions API token and the GA4 API secret (stored encrypted); the cookie banner switch.
+- [x] Cookie banner with Accept and Reject, and a "Cookie settings" link in the footer to change the answer. No tag loads and no cookie of ours is written before Accept. The admin and instructor panels are never tracked.
+- [x] Events to every tag that is switched on: page view, course viewed, added to cart, checkout started, purchase (value, currency, courses, coupon), sign-up.
+- [x] Purchases are also sent from the server to Meta and Google Analytics when an order is marked paid (the Stripe webhook), once per order, only for buyers who accepted tracking. Meta counts the browser and server reports as one (shared event id); Google Analytics gets the purchase from the server only.
+- [x] Where a visitor came from (campaign tags, ad click ids, or the referring site) is remembered for 90 days and stored on the account at sign-up and on the order at checkout.
+- [x] Unit tests for the attribution rules. Checked in the browser with made-up IDs: nothing loads before Accept, both scripts load after, the campaign is remembered, and course view, add to cart and checkout started fire.
+
+### Reports
+
+- [x] `/admin/analytics`: Sales, Courses, Learners, Marketing, each with the date range picker, headline figures against the previous period, a chart and tables. New permission `analytics.view`.
+- [x] Every table downloads as CSV for the chosen period.
+- [x] Sales: revenue, orders, average order value, refunds, discounts; best-selling courses; revenue by category; coupons; sales by day or month.
+- [x] Courses: new enrolments, completions, completion rate, rating; a row per course; the lesson unfinished learners are on; quiz pass rates.
+- [x] Learners: sign-ups, active learners, sign-up to purchase rate, repeat buyers; top spenders; sign-ups by day or month.
+- [x] Marketing: sign-ups, orders and revenue by source and by campaign.
+- [x] Unit tests for the CSV output. Checked in the browser: all four reports against the sample data.
+
+### Left to do
+
+- Not tried against the real platforms: no real pixel, token or API secret was available, so the server-side purchase calls and each vendor's event names are unverified. Meta's "Test event code" field is there for that first check.
+- Not tried: a purchase event in the browser (needs a Stripe payment), the sign-up event, a CSV download, Reject then Accept on the banner.
+- Server-side purchases are sent once and not retried; a failure is only written to the server log.
+- LinkedIn gets page views and audiences only (its conversions need an ID per event). TikTok and Google Ads purchases come from the browser only.
+- Refunds are not reported back to the ad platforms.
+- The banner is one Accept / Reject choice, not separate analytics and advertising switches, and its wording is generic: it needs a privacy policy page to link to.
+- Marketing report rows before tracking was switched on, and from visitors who rejected cookies, all show as "Direct".
+- Reports add rows up in memory; fine for tens of thousands of orders, after that they want database GROUP BYs.
+- Removed from the admin menu: the whole Marketing group (tracking is under Settings > Tracking, campaign results under Reports > Marketing) and the Traffic and Overview placeholders.
+
 ## Settings — admin editable (2026-10-13)
 
 Decided by the owner: the site is run by a non-technical person, so everything they may need to change is on a screen, keys and passwords included. Tax is left out until the client's needs are known. One currency for the whole site (pounds, dollars or euros), not one per course.

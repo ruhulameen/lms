@@ -11,6 +11,7 @@ import { safeReturnPath } from "@/lib/return-path";
 import { getSettings } from "@/lib/settings-store";
 import { logActivity } from "@/services/activity";
 import { db } from "@/lib/db";
+import { queueBrowserEvent, readAttribution } from "@/services/tracking";
 import { getCurrentUser, getUserPanel } from "@/services/user";
 
 const MINUTE = 60;
@@ -158,6 +159,14 @@ export async function signUp(
     }
     throw error;
   }
+
+  // Which campaign brought them, for the marketing report; and the sign-up
+  // itself for the browser tags on the next page. Neither may fail the sign-up.
+  try {
+    const attribution = await readAttribution();
+    if (attribution) await db.user.update({ where: { email: parsed.data.email.toLowerCase() }, data: { attribution } });
+    await queueBrowserEvent({ event: "sign_up" });
+  } catch {}
 
   // Self sign-up always creates a student; a page that sent the visitor here (checkout) is returned to.
   redirect(safeReturnPath(formData.get("next")) ?? panelHome("student"));

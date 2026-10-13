@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckoutSteps } from "@/components/site/checkout-steps";
+import { TrackEvent } from "@/components/site/tracking";
 import { formatPence, isFreeOrder } from "@/lib/commerce";
 import { formatCoursePrice } from "@/lib/course";
 import { formatPrice } from "@/lib/format";
@@ -45,6 +46,14 @@ export default async function CheckoutPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <TrackEvent
+        payload={{
+          event: "begin_checkout",
+          value: cart.total,
+          coupon: cart.couponCode ?? undefined,
+          items: cart.items.map(({ course }, i) => ({ id: String(cart.lines[i].courseId), name: course.title, price: cart.pricing.lines[i].totalPence / 100 })),
+        }}
+      />
       <CheckoutSteps
         defaults={await getBillingDefaults(user)}
         email={user.email}

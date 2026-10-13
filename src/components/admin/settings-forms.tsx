@@ -7,6 +7,7 @@ import {
   savePaymentSettings,
   saveSiteSettings,
   saveStorageSettings,
+  saveTrackingSettings,
   testEmailDelivery,
   testStorageConnection,
   testStripeConnection,
@@ -367,5 +368,101 @@ export function StorageSettingsForm({ data, source, siteUrl }: StorageFormProps)
         <CheckButton action={applyStorageUploadRule} label="Allow uploads" pendingLabel="Saving the rule..." />
       </SettingsCard>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- tracking
+
+export function TrackingSettingsForm({ data }: { data: SettingsFormData<"tracking"> }) {
+  const [state, formAction, pending] = useActionState(saveTrackingSettings, initialFormState);
+  useSaveToast(state);
+  const { values, secrets } = data;
+
+  return (
+    <form action={formAction} className="grid max-w-3xl gap-6" noValidate>
+      <Notice tone="ok">
+        Paste an ID and that tag starts working on the public site and the learner area; leave a box empty and nothing is loaded for it. The admin panel is
+        never tracked. Each tag reports page views, course views, add to cart, checkout started, purchases (with their value) and sign-ups.
+      </Notice>
+
+      <SettingsCard title="Cookie banner">
+        <SwitchField
+          name="consentBanner"
+          label="Ask visitors before tracking"
+          description="Shows a banner with Accept and Reject. Until a visitor accepts, no tag loads and no purchase of theirs is reported. Required in the UK and the EU; only switch off if you are sure the law where you sell does not ask for it."
+          saved={values.consentBanner}
+          state={state}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Meta (Facebook and Instagram)" description="For retargeting and conversion tracking in Meta Ads. Found in Meta Events Manager.">
+        <TextField name="metaPixelId" label="Pixel ID" saved={values.metaPixelId} state={state} inputMode="numeric" hint="Events Manager > Data sources > your pixel > Settings." className="font-mono sm:max-w-sm" />
+        <SecretField
+          name="metaAccessToken"
+          label="Conversions API access token"
+          secret={secrets.metaAccessToken}
+          state={state}
+          hint="Optional but recommended: with it every purchase is also reported from the server, so sales are not lost to ad blockers. Same Settings page > Conversions API > Generate access token."
+        />
+        <TextField
+          name="metaTestEventCode"
+          label="Test event code"
+          saved={values.metaTestEventCode}
+          state={state}
+          hint="Only while testing: server purchases then show under Test events in Events Manager. Clear it afterwards."
+          className="font-mono sm:max-w-xs"
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Google Analytics" description="Visitor and sales reports in Google Analytics 4.">
+        <TextField name="ga4Id" label="Measurement ID" saved={values.ga4Id} state={state} placeholder="G-XXXXXXXXXX" hint="Analytics > Admin > Data streams > your stream." className="font-mono sm:max-w-sm" />
+        <SecretField
+          name="ga4ApiSecret"
+          label="Measurement Protocol API secret"
+          secret={secrets.ga4ApiSecret}
+          state={state}
+          hint="Optional but recommended: with it purchases are reported from the server instead of the browser. Same data stream page > Measurement Protocol API secrets > Create."
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Google Ads" description="Conversion tracking and remarketing audiences for Google Ads.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField name="googleAdsId" label="Conversion ID" saved={values.googleAdsId} state={state} placeholder="AW-123456789" className="font-mono" />
+          <TextField
+            name="googleAdsPurchaseLabel"
+            label="Purchase conversion label"
+            saved={values.googleAdsPurchaseLabel}
+            state={state}
+            hint="From the purchase conversion action: the part after the slash."
+            className="font-mono"
+          />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="TikTok" description="Retargeting and conversion tracking in TikTok Ads.">
+        <TextField name="tiktokPixelId" label="Pixel ID" saved={values.tiktokPixelId} state={state} hint="TikTok Ads Manager > Tools > Events." className="font-mono sm:max-w-sm" />
+      </SettingsCard>
+
+      <SettingsCard title="LinkedIn" description="The Insight Tag, for audiences in LinkedIn Campaign Manager. Page views only: purchases are not reported to LinkedIn.">
+        <TextField
+          name="linkedinPartnerId"
+          label="Partner ID"
+          saved={values.linkedinPartnerId}
+          state={state}
+          inputMode="numeric"
+          hint="Campaign Manager > Analyze > Insight Tag."
+          className="font-mono sm:max-w-sm"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Google Tag Manager"
+        description="For an agency that manages tags itself. The site hands every event to Tag Manager; do not also set up inside it a tag you have filled in above, or it will count twice."
+      >
+        <TextField name="gtmId" label="Container ID" saved={values.gtmId} state={state} placeholder="GTM-XXXXXXX" className="font-mono sm:max-w-sm" />
+      </SettingsCard>
+
+      <SaveBar pending={pending} state={state} />
+    </form>
   );
 }

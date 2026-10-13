@@ -40,7 +40,8 @@ export async function getSettingsForm<G extends SettingGroup>(group: G): Promise
   const values = storedGroup(group, row?.value) as Record<string, unknown>;
   const secrets: Record<string, SecretState> = {};
   for (const field of secretFields[group] as readonly string[]) {
-    const plain = typeof values[field] === "string" && values[field] ? (openSecret(values[field]) ?? "") : "";
+    const sealed = values[field];
+    const plain = typeof sealed === "string" && sealed ? (openSecret(sealed) ?? "") : "";
     secrets[field] = { saved: Boolean(plain), hint: maskSecret(plain) };
     values[field] = "";
   }

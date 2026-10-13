@@ -5,6 +5,7 @@ import { normaliseCouponCode } from "@/lib/commerce";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { checkCartable, getCart, readCartLines, writeCartLines, writeCouponCode } from "@/services/cart";
 import { evaluateCoupon } from "@/services/coupon";
+import { queueBrowserEvent, trackItemForCourse } from "@/services/tracking";
 import { getCurrentUser } from "@/services/user";
 
 // Adds the course to the cart when it can be bought; otherwise redirects to
@@ -25,6 +26,9 @@ async function add(formData: FormData) {
   if (!lines.some((item) => item.slug === slug)) {
     lines.push({ slug });
     await writeCartLines(lines);
+    // Reported by the browser tags on the page this lands on.
+    const item = await trackItemForCourse(slug);
+    if (item) await queueBrowserEvent({ event: "add_to_cart", value: item.price, items: [item] });
   }
 }
 

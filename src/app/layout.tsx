@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
+import { Tracking } from "@/components/site/tracking";
 import { ensureSettings } from "@/lib/settings-store";
+import { getPublicTracking } from "@/services/tracking";
 import "./globals.css";
 
 const inter = Inter({
@@ -37,7 +39,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {/* The site currency for price formatting in the browser: see siteCurrency() in src/lib/format.ts. */}
         <script dangerouslySetInnerHTML={{ __html: `globalThis.__lmsCurrency=${JSON.stringify(payment.currency)}` }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Tracking config={getPublicTracking()} />
+      </body>
     </html>
   );
 }
