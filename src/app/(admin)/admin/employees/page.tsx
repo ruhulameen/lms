@@ -16,11 +16,16 @@ import {
   USER_SORT_KEYS,
 } from "@/services/user";
 
-export const metadata: Metadata = { title: "Users" };
+export const metadata: Metadata = { title: "Employees" };
+
+const yesNo = (value: string | string[] | undefined) => {
+  const v = firstParam(value);
+  return v === "yes" || v === "no" ? v : undefined;
+};
 
 const STATUSES = ["ACTIVE", "SUSPENDED", "BANNED"] as const;
 
-export default async function UsersPage({
+export default async function EmployeesPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
@@ -35,6 +40,9 @@ export default async function UsersPage({
       search: firstParam(params.q),
       role: firstParam(params.role),
       status,
+      verified: yesNo(params.verified),
+      twoFactor: yesNo(params.twofa),
+      excludeStudent: true,
       page: intParam(params.page),
       ...sort,
     }),
@@ -47,7 +55,7 @@ export default async function UsersPage({
       header: "Name",
       sortable: true,
       cell: (u) => (
-        <Link href={`/admin/users/${u.id}`} className="font-medium text-blue-700 hover:underline">
+        <Link href={`/admin/employees/${u.id}`} className="font-medium text-blue-700 hover:underline">
           {u.name}
         </Link>
       ),
@@ -72,36 +80,36 @@ export default async function UsersPage({
   return (
     <>
       <PageHeader
-        title="Users"
-        description="Everyone with an account: students, instructors and staff."
+        title="Employees"
+        description="Instructors, admins and other staff. Learners have their own list."
         actions={
           can(viewer, "user.create") && (
-            <Button render={<Link href="/admin/users/new" />}>
-              <Plus aria-hidden /> New user
+            <Button render={<Link href="/admin/employees/new" />}>
+              <Plus aria-hidden /> New employee
             </Button>
           )
         }
       />
       <DataTable
-        caption="Users"
+        caption="Employees"
         columns={columns}
         rows={rows}
         rowKey={(u) => u.id}
-        basePath="/admin/users"
+        basePath="/admin/employees"
         searchParams={params}
         sort={sort}
         page={page}
         pageSize={pageSize}
         total={total}
-        emptyTitle="No users found"
+        emptyTitle="No employees found"
         emptyDescription="Try a different search or clear the filters."
         toolbar={
-          <DataTableToolbar basePath="/admin/users" searchParams={params} searchPlaceholder="Search name or email">
+          <DataTableToolbar basePath="/admin/employees" searchParams={params} searchPlaceholder="Search name or email">
             <FilterSelect
               name="role"
               label="All roles"
               searchParams={params}
-              options={roles.map((r) => ({ value: r.name, label: r.name }))}
+              options={roles.filter((r) => r.name !== "student").map((r) => ({ value: r.name, label: r.name }))}
             />
             <FilterSelect
               name="status"
@@ -111,6 +119,24 @@ export default async function UsersPage({
                 { value: "ACTIVE", label: "Active" },
                 { value: "SUSPENDED", label: "Suspended" },
                 { value: "BANNED", label: "Banned" },
+              ]}
+            />
+            <FilterSelect
+              name="verified"
+              label="Email verified"
+              searchParams={params}
+              options={[
+                { value: "yes", label: "Verified" },
+                { value: "no", label: "Not verified" },
+              ]}
+            />
+            <FilterSelect
+              name="twofa"
+              label="2FA"
+              searchParams={params}
+              options={[
+                { value: "yes", label: "2FA on" },
+                { value: "no", label: "2FA off" },
               ]}
             />
           </DataTableToolbar>

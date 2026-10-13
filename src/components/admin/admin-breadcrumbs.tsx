@@ -17,7 +17,7 @@ function humanize(segment: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// Breadcrumb built from the URL: /admin/users/roles -> Dashboard / Users / Roles (also under /instructor).
+// Breadcrumb built from the URL: /admin/roles/new -> Dashboard / Roles / New (also under /instructor).
 export function AdminBreadcrumbs() {
   const [root, ...segments] = usePathname().split("/").filter(Boolean);
   const crumbs = [

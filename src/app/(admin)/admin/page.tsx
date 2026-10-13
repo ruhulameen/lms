@@ -71,8 +71,8 @@ export default async function AdminDashboardPage({
 
   const quickActions = [
     can(user, "post.create") && { href: "/admin/blog/new", label: "New post", icon: SquarePen },
-    can(user, "user.create") && { href: "/admin/users/new", label: "New user", icon: Plus },
-    can(user, "role.manage") && { href: "/admin/users/roles", label: "New role", icon: Shield },
+    can(user, "user.create") && { href: "/admin/employees/new", label: "New employee", icon: Plus },
+    can(user, "role.manage") && { href: "/admin/roles/new", label: "New role", icon: Shield },
   ].filter((a) => a !== false);
 
   return (
@@ -278,7 +278,7 @@ export default async function AdminDashboardPage({
                 <li key={u.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span className="min-w-0">
                     {can(user, "user.view") ? (
-                      <Link href={`/admin/users/${u.id}`} className="font-medium text-blue-700 hover:underline">{u.name}</Link>
+                      <Link href={`/admin/employees/${u.id}`} className="font-medium text-blue-700 hover:underline">{u.name}</Link>
                     ) : (
                       <span className="font-medium">{u.name}</span>
                     )}

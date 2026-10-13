@@ -97,8 +97,9 @@ export async function createUser(_prev: FormState, formData: FormData): Promise<
     entityId: userId,
     details: { email, role: role.name },
   });
-  revalidatePath("/admin/users");
-  redirect(`/admin/users/${userId}?created=1`);
+  revalidatePath("/admin/employees");
+  revalidatePath("/admin/learners");
+  redirect(`/admin/${role.name === "student" ? "learners" : "employees"}/${userId}?created=1`);
 }
 
 export async function updateUser(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -173,7 +174,8 @@ export async function updateUser(_prev: FormState, formData: FormData): Promise<
       details: { from: oldRoleName, to: newRole.name },
     });
   }
-  revalidatePath("/admin/users", "layout");
+  revalidatePath("/admin/employees", "layout");
+  revalidatePath("/admin/learners", "layout");
   return {
     ok: true,
     message: changed.length > 0 || roleChanged ? "User saved." : "Nothing to change.",
@@ -229,6 +231,7 @@ export async function setUserStatus(formData: FormData): Promise<ActionResult> {
     entityId: id,
     details: { from: outcome.from, to: status },
   });
-  revalidatePath("/admin/users", "layout");
+  revalidatePath("/admin/employees", "layout");
+  revalidatePath("/admin/learners", "layout");
   return { ok: true, message: statusActions[status].message };
 }

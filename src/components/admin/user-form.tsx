@@ -17,9 +17,11 @@ type UserFormProps = {
   readOnly?: boolean;
   // Edit mode: why the role select is locked (own account), if it is.
   roleLockedReason?: string;
+  // Create mode: text of the submit button.
+  submitLabel?: string;
 };
 
-export function UserForm({ mode, roles, user, readOnly, roleLockedReason }: UserFormProps) {
+export function UserForm({ mode, roles, user, readOnly, roleLockedReason, submitLabel = "Create employee" }: UserFormProps) {
   const [state, formAction, pending] = useActionState(
     mode === "create" ? createUser : updateUser,
     initialFormState,
@@ -33,7 +35,9 @@ export function UserForm({ mode, roles, user, readOnly, roleLockedReason }: User
 
   // Remounted with the submitted values after a failed save so fields refill.
   const formKey = state.ok ? "ok" : JSON.stringify(values);
-  const roleValue = values?.roleId ?? String(user?.roleId ?? "");
+  // A single offered role (e.g. the learner form) is preselected.
+  const onlyRole = mode === "create" && roles.length === 1 ? String(roles[0].id) : "";
+  const roleValue = values?.roleId ?? String(user?.roleId ?? onlyRole);
 
   return (
     <form key={formKey} action={formAction} className="grid max-w-xl gap-5" noValidate>
@@ -74,7 +78,7 @@ export function UserForm({ mode, roles, user, readOnly, roleLockedReason }: User
               className={selectClassName}
               required
             >
-              {mode === "create" && <option value="">Choose a role</option>}
+              {mode === "create" && !onlyRole && <option value="">Choose a role</option>}
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
@@ -112,7 +116,7 @@ export function UserForm({ mode, roles, user, readOnly, roleLockedReason }: User
       {!readOnly && (
         <div>
           <Button type="submit" disabled={pending}>
-            {pending ? "Saving..." : mode === "create" ? "Create user" : "Save changes"}
+            {pending ? "Saving..." : mode === "create" ? submitLabel : "Save changes"}
           </Button>
         </div>
       )}

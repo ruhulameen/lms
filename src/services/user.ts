@@ -108,6 +108,11 @@ export type UserListFilters = {
   search?: string;
   role?: string;
   status?: UserStatus;
+  // "yes" / "no" filters; anything else means no filter.
+  verified?: string;
+  twoFactor?: string;
+  // Employees: every account whose role is not `student` (no role included).
+  excludeStudent?: boolean;
   sort: UserSortKey;
   order: "asc" | "desc";
   page: number;
@@ -119,6 +124,10 @@ export async function listUsers(filters: UserListFilters) {
   const where: Prisma.UserWhereInput = {
     status: filters.status,
     role: filters.role ? { name: filters.role } : undefined,
+    // Accounts with no role count as employees, so test roleId as well.
+    AND: filters.excludeStudent && !filters.role ? [{ OR: [{ roleId: null }, { role: { name: { not: "student" } } }] }] : undefined,
+    emailVerified: filters.verified === "yes" ? true : filters.verified === "no" ? false : undefined,
+    twoFactorEnabled: filters.twoFactor === "yes" ? true : filters.twoFactor === "no" ? false : undefined,
     OR: search
       ? [{ name: { contains: search } }, { email: { contains: search } }]
       : undefined,

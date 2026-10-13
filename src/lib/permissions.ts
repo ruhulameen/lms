@@ -10,12 +10,12 @@ export const permissionGroups = [
   },
   {
     key: "user",
-    label: "Users",
+    label: "Employees",
     permissions: [
-      { key: "user.view", label: "View users", description: "See the user list and user details" },
-      { key: "user.create", label: "Create users", description: "Add new users" },
-      { key: "user.edit", label: "Edit users", description: "Edit user details and change their role" },
-      { key: "user.status", label: "Change user status", description: "Suspend, ban and reactivate users" },
+      { key: "user.view", label: "View employees", description: "See the employee list and account details" },
+      { key: "user.create", label: "Create employees", description: "Add new employee and learner accounts" },
+      { key: "user.edit", label: "Edit employees", description: "Edit account details and change a role" },
+      { key: "user.status", label: "Change account status", description: "Suspend, ban and reactivate employees and learners" },
     ],
   },
   {
@@ -92,7 +92,7 @@ export const permissionGroups = [
 ] as const;
 
 // Granted to the instructor role the first time each permission is seeded;
-// afterwards the permission matrix owns the assignments. Admin needs no rows.
+// afterwards each role's page owns the assignments. Admin needs no rows.
 export const defaultInstructorPermissions: PermissionKey[] = ["course.view", "course.create", "course.edit"];
 
 export type PermissionKey =

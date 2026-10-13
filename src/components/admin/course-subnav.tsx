@@ -5,15 +5,17 @@ import { can, getCurrentUser } from "@/services/user";
 type CourseSubnavProps = {
   courseId: number;
   basePath: string;
-  active: "edit" | "curriculum" | "preview" | "learners";
+  active: "overview" | "edit" | "curriculum" | "preview" | "learners";
 };
 
-// Links between the screens of one course. Server component: `active` marks
+// Links between the screens of one course. Overview is the admin panel's only.
+// Server component: `active` marks
 // the current one; Learners shows for people who may view enrolments, and in
 // the instructor panel (the learners page then checks course ownership).
 export async function CourseSubnav({ courseId, basePath, active }: CourseSubnavProps) {
   const user = await getCurrentUser();
   const items = [
+    ...(basePath === "/admin/courses" ? [{ key: "overview", label: "Overview", href: `${basePath}/${courseId}` } as const] : []),
     { key: "edit", label: "Details", href: `${basePath}/${courseId}/edit` },
     { key: "curriculum", label: "Curriculum", href: `${basePath}/${courseId}/curriculum` },
     { key: "preview", label: "Preview", href: `${basePath}/${courseId}/preview` },

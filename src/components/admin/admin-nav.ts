@@ -151,11 +151,11 @@ export const adminNav: AdminNavEntry[] = [
   },
   { label: "Media", icon: Images, href: "/admin/media", permission: "media.view" },
   {
-    label: "Users",
+    label: "Employees & Roles",
     icon: UserCog,
     items: [
-      { label: "Users", icon: Users, href: "/admin/users", permission: "user.view" },
-      { label: "Roles & Permissions", icon: Shield, href: "/admin/users/roles", permission: "role.view" },
+      { label: "Employees", icon: Users, href: "/admin/employees", permission: "user.view" },
+      { label: "Roles", icon: Shield, href: "/admin/roles", permission: "role.view" },
     ],
   },
   { label: "Settings", icon: Settings },

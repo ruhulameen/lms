@@ -37,7 +37,7 @@ type DataTableProps<T> = {
   columns: DataTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string | number;
-  // Path of the list page, e.g. "/admin/users"; links are built from it.
+  // Path of the list page, e.g. "/admin/employees"; links are built from it.
   basePath: string;
   // The page's raw searchParams; every param is kept when sorting or paging.
   searchParams: SearchParams;

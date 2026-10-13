@@ -54,6 +54,73 @@ Still open, later phases:
 
 - [ ] Email provider — needed before production.
 
+## Admin rework — employees, roles, learners, course insight
+
+Asked for on 2026-10-13. Decisions made the same day; built by three Sonnet agents. Type check, lint and 140 unit tests pass; the pages have not been opened in a browser yet, so the boxes stay unticked.
+
+### What exists today
+
+- `/admin/users` lists every account (students included); `/admin/users/[id]` edits one and changes its status.
+- `/admin/users/roles` is one page: role table, a dialog for name and description, and a permission matrix for all roles at once.
+- `/admin/learners` lists only people who have an enrolment, with a search box and no filters; `/admin/learners/[id]` shows courses and quiz results.
+- `/admin/courses/[id]` just redirects to the edit form; the course has a Learners tab but no figures.
+
+### Decisions (2026-10-13)
+
+- URLs move to `/admin/employees` and `/admin/roles`. The old `/admin/users...` pages are removed with no redirects.
+- A learner is everyone with the `student` role, enrolled or not.
+- The all-roles permission matrix is removed; permissions are edited on each role's own page.
+- The course overview is in the admin panel only.
+- Built by Sonnet agents.
+
+### 1. Employees and roles
+
+- [ ] Menu group "Users" becomes "Employees & Roles" with two links: Employees, Roles.
+- [ ] Employees list: every account whose role is not `student` (instructors, admins, custom roles). Search by name or email; filters for role, status, email verified, 2FA; sortable; paginated. "New employee" form offers every role except `student`.
+- [ ] Employee detail keeps the edit form, status controls and recent activity; the learning and orders blocks move to the learner page.
+- [ ] Roles list (`/admin/roles`): table with name, description, system badge, employees, permissions; search and pagination; View / Edit / Delete actions.
+- [ ] Role detail (`/admin/roles/[id]`): description, granted permissions grouped by module, the people who hold the role.
+- [ ] Role add (`/admin/roles/new`) and edit (`/admin/roles/[id]/edit`): name, description, and every permission as a checkbox grouped by module, with "select all" per group. One save writes the role and its permissions together.
+- [ ] System roles (`student`, `instructor`, `admin`): view only. No edit page (it answers "not found"), no delete, and the actions refuse them on the server as well.
+- [ ] Permission keys stay (`user.*`, `role.*`); only their labels change to "Employees".
+- [ ] `/admin/users...` pages deleted, no redirects. Opening a student under `/admin/employees/[id]` goes to their learner page.
+
+### 2. Learners
+
+- [ ] List: name, email, account status, courses, completed, average progress, certificates, total spent, joined, last activity. Search by name or email; filters for account status, course, progress (not started / in progress / completed), has certificate, has bought, joined date range; sortable; paginated.
+- [ ] "New learner" button (creates a `student` account), for people with `user.create`.
+- [ ] Detail page, in sections:
+  - Basic info: name, email, joined, email verified, 2FA, status, last sign-in; edit form and suspend / ban / reactivate (same permissions as today).
+  - Summary tiles: courses, completed, average progress, certificates, orders, lifetime value, refunded.
+  - Courses: each enrolment with source (free / assigned / bought), status, progress, lessons done, last activity, quiz attempts and best score, certificate; assign and cancel as now.
+  - Quiz results (existing).
+  - Certificates: code, course, issued, revoked or not, link to the public check.
+  - Orders and payments: every order with status, coupon, total, paid date, card; link to the order.
+  - Refunds: amount, date, reason, status, which courses.
+  - Reviews written, and recent activity.
+- [ ] Lifetime value = paid order totals minus refunds. Money sections need `order.view`; others show to `enrolment.view`.
+
+### 3. Course detail
+
+- [ ] `/admin/courses/[id]` becomes an "Overview" tab (first in the course tabs) instead of a redirect.
+- [ ] Tiles: enrolled, in progress, completed, completion rate, average progress, cancelled, certificates issued, rating and review count, revenue, refunded, net revenue.
+- [ ] Enrolments by source (free / assigned / bought) and enrolments per month.
+- [ ] Progress spread: not started, 1–49%, 50–99%, completed.
+- [ ] Lesson by lesson: how many learners finished each lesson, to show where people stop.
+- [ ] Quizzes: attempts, pass rate, average score per quiz.
+- [ ] Recent enrolments, recent certificates, recent orders, each linking to its full list.
+- [ ] Revenue tiles and orders need `order.view`.
+
+### Tests
+
+- A few Vitest unit tests only: lifetime value and net revenue sums, the progress-spread buckets, and the system-role check (`tests/unit/`).
+
+### Left to do
+
+- [ ] Browser check, by hand: employees list filters and new employee; role add / edit with permission ticks, a system role (view only); learners list filters, new learner, learner detail with a learner who has orders and a refund; course Overview tab on a course with enrolments and sales.
+- [ ] Run `pnpm db:seed` so the reworded permission descriptions ("employees") reach the database.
+- [ ] The course overview's "All orders" link opens the full orders list: the orders page has no course filter.
+
 ## Phase 5 — Commerce
 
 Spec §12. In the spec, "product" means a course and "order" means a course purchase: there is no separate product catalogue, the price stays on the course.

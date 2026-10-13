@@ -58,7 +58,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const canRefund = can(viewer, "order.refund");
   const canCancel = canManage && canTransition(order.status, "CANCELLED");
   const b = order.billing;
-  const learnerLink = can(viewer, "user.view") ? `/admin/users/${order.learner.id}` : null;
+  const learnerLink = can(viewer, "enrolment.view") ? `/admin/learners/${order.learner.id}` : null;
 
   return (
     <>

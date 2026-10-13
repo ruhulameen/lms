@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { hasLearnerAccess } from "@/lib/learning";
+import { PAID_ORDER_STATUSES, summariseOrders } from "@/lib/learner-insight";
 import { logActivity } from "@/services/activity";
 import { recalculateEnrolmentProgress } from "@/services/learning";
 
@@ -160,19 +161,66 @@ export type LearnerRow = {
   certificates: number;
   averageProgress: number;
   lastActivityAt: Date | null;
+  // Lifetime value (paid minus refunded); null unless the caller asked for money.
+  totalSpent: number | null;
 };
 
-// People who have taken part in a course (any enrolment), with totals.
+export const LEARNER_PROGRESS_FILTERS = ["not-started", "in-progress", "completed"] as const;
+export type LearnerProgressFilter = (typeof LEARNER_PROGRESS_FILTERS)[number];
+
+export type LearnerFilters = {
+  search?: string;
+  status?: "ACTIVE" | "SUSPENDED" | "BANNED";
+  // Enrolled in this course (any status except cancelled).
+  courseId?: number;
+  // not-started: no enrolment, or none with any progress.
+  // in-progress: at least one active enrolment with progress above 0.
+  // completed: at least one completed enrolment.
+  progress?: LearnerProgressFilter;
+  hasCertificate?: boolean;
+  // Has at least one paid order (paid, partly or fully refunded).
+  hasBought?: boolean;
+  // Inclusive start, exclusive end.
+  joinedFrom?: Date;
+  joinedTo?: Date;
+  page?: number;
+  sort: LearnerSortKey;
+  order: "asc" | "desc";
+};
+
+// Everyone with the student role, enrolled or not, with totals. With a
+// courseScope only students enrolled in those courses are listed and the
+// figures count those courses only. Pass includeMoney for viewers with order.view.
 export async function listLearners(
-  filters: { search?: string; page?: number; sort: LearnerSortKey; order: "asc" | "desc" },
+  filters: LearnerFilters,
   courseScope?: Prisma.CourseWhereInput,
+  options: { includeMoney?: boolean } = {},
 ) {
   const page = Math.max(filters.page ?? 1, 1);
   const search = filters.search?.trim();
   const scope = courseScope && Object.keys(courseScope).length > 0 ? courseScope : undefined;
+  const live: Prisma.EnrolmentWhereInput = { status: { not: "CANCELLED" }, ...(scope ? { course: scope } : {}) };
+
+  const and: Prisma.UserWhereInput[] = [];
+  if (scope) and.push({ enrolments: { some: { course: scope } } });
+  if (filters.courseId) and.push({ enrolments: { some: { courseId: filters.courseId, status: { not: "CANCELLED" } } } });
+  if (filters.progress === "not-started") and.push({ enrolments: { none: { ...live, progressPercent: { gt: 0 } } } });
+  if (filters.progress === "in-progress") and.push({ enrolments: { some: { ...live, status: "ACTIVE", progressPercent: { gt: 0 } } } });
+  if (filters.progress === "completed") and.push({ enrolments: { some: { ...live, status: "COMPLETED" } } });
+  if (filters.hasCertificate !== undefined) {
+    const certs = { revokedAt: null, ...(scope ? { course: scope } : {}) };
+    and.push(filters.hasCertificate ? { certificates: { some: certs } } : { certificates: { none: certs } });
+  }
+  if (filters.hasBought !== undefined) {
+    const paid = { status: { in: [...PAID_ORDER_STATUSES] } };
+    and.push(filters.hasBought ? { orders: { some: paid } } : { orders: { none: paid } });
+  }
   const where: Prisma.UserWhereInput = {
-    enrolments: { some: scope ? { course: scope } : {} },
+    role: { name: "student" },
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.joinedFrom || filters.joinedTo ? { createdAt: { gte: filters.joinedFrom, lt: filters.joinedTo } } : {}),
     ...(search ? { OR: [{ name: { contains: search } }, { email: { contains: search } }] } : {}),
+    ...(and.length ? { AND: and } : {}),
   };
   const dir = filters.order;
   const orderBy: Prisma.UserOrderByWithRelationInput[] = [
@@ -190,14 +238,21 @@ export async function listLearners(
     db.user.count({ where }),
   ]);
   const ids = users.map((u) => u.id);
-  const enrolmentWhere: Prisma.EnrolmentWhereInput = { userId: { in: ids }, status: { not: "CANCELLED" }, ...(scope ? { course: scope } : {}) };
-  const [byStatus, averages, certificates] = ids.length
+  const enrolmentWhere: Prisma.EnrolmentWhereInput = { userId: { in: ids }, ...live };
+  const [byStatus, averages, certificates, orders] = ids.length
     ? await Promise.all([
         db.enrolment.groupBy({ by: ["userId", "status"], where: enrolmentWhere, _count: { _all: true }, _max: { updatedAt: true } }),
         db.enrolment.groupBy({ by: ["userId"], where: enrolmentWhere, _avg: { progressPercent: true } }),
         db.certificate.groupBy({ by: ["userId"], where: { userId: { in: ids }, revokedAt: null, ...(scope ? { course: scope } : {}) }, _count: { _all: true } }),
+        options.includeMoney
+          ? db.order.groupBy({
+              by: ["userId", "status"],
+              where: { userId: { in: ids }, status: { in: [...PAID_ORDER_STATUSES] } },
+              _sum: { total: true, refundedTotal: true },
+            })
+          : [],
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   const rows: LearnerRow[] = users.map((user) => {
     const mine = byStatus.filter((g) => g.userId === user.id);
@@ -213,6 +268,13 @@ export async function listLearners(
       certificates: certificates.find((c) => c.userId === user.id)?._count._all ?? 0,
       averageProgress: Math.round(averages.find((a) => a.userId === user.id)?._avg.progressPercent ?? 0),
       lastActivityAt: last.length ? new Date(Math.max(...last.map((d) => d.getTime()))) : null,
+      totalSpent: options.includeMoney
+        ? summariseOrders(
+            orders
+              .filter((o) => o.userId === user.id)
+              .map((o) => ({ status: o.status, total: Number(o._sum.total ?? 0), refundedTotal: Number(o._sum.refundedTotal ?? 0) })),
+          ).lifetimeValue
+        : null,
     };
   });
   return { rows, total, page, pageSize: LEARNER_PAGE_SIZE };

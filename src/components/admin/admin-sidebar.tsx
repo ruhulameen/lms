@@ -49,7 +49,7 @@ function isGroup(
   return "items" in entry;
 }
 
-// The most specific link wins, so /admin/users/roles does not also light up /admin/users.
+// The most specific link wins, so /admin/employees/new does not also light up /admin/employees.
 function findActiveHref(nav: AdminNavView, pathname: string) {
   const hrefs = nav
     .flatMap((entry) => (isGroup(entry) ? entry.items : [entry]))

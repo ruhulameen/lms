@@ -19,7 +19,9 @@ export default async function CertificatesPage({ searchParams }: { searchParams:
   const params = await searchParams;
   const status = firstParam(params.status) === "VALID" ? "VALID" : firstParam(params.status) === "REVOKED" ? "REVOKED" : undefined;
   const sort = sortParams(params, CERTIFICATE_SORT_KEYS, { sort: "issued", order: "desc" });
-  const list = await listCertificates({ search: firstParam(params.q), status, page: intParam(params.page), ...sort });
+  // `course` narrows the list to one course (linked from the course overview).
+  const courseId = intParam(params.course, 0) || undefined;
+  const list = await listCertificates({ search: firstParam(params.q), status, courseId, page: intParam(params.page), ...sort });
   const canManage = can(viewer, "certificate.manage");
 
   type Row = (typeof list.rows)[number];
