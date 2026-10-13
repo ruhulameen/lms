@@ -12,9 +12,11 @@ import {
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { objectUrl, type Settings } from "@/lib/settings-schema";
+import { getSettings } from "@/lib/settings-store";
 
-// Cloudflare R2 through its S3-compatible API. Credentials come from the
-// environment and never leave the server.
+// Cloudflare R2 through its S3-compatible API. Credentials come from
+// Settings > File storage (or the R2_* values in .env) and never leave the server.
 const PRESIGN_TTL_SECONDS = 60 * 60;
 
 // Signed read links for private files. Video needs the full hour so playback and
@@ -22,48 +24,58 @@ const PRESIGN_TTL_SECONDS = 60 * 60;
 export const VIDEO_URL_TTL_SECONDS = 60 * 60;
 export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
-function hasCredentials() {
-  return Boolean(
-    process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY,
-  );
+type StorageSettings = Settings["storage"];
+
+const config = () => getSettings().storage;
+
+function hasCredentials(storage: StorageSettings = config()) {
+  return Boolean(storage.accountId && storage.accessKeyId && storage.secretAccessKey);
 }
 
 export function isStorageConfigured() {
-  return Boolean(hasCredentials() && process.env.R2_BUCKET && process.env.R2_PUBLIC_URL);
+  const storage = config();
+  return Boolean(hasCredentials(storage) && storage.bucket && storage.publicUrl);
 }
 
 // The second bucket holds lesson files. It has no public URL: every read is a
 // signed link made on the server. Same account and credentials as the first.
 export function isPrivateStorageConfigured() {
-  return Boolean(hasCredentials() && process.env.R2_PRIVATE_BUCKET);
+  const storage = config();
+  return Boolean(hasCredentials(storage) && storage.privateBucket);
 }
 
-let client: S3Client | undefined;
-
-function s3() {
-  if (!hasCredentials()) throw new Error("Storage is not configured.");
-  client ??= new S3Client({
+// A client for the given credentials. Also used by the settings screen to try
+// values before they are relied on.
+export function createStorageClient(storage: StorageSettings) {
+  return new S3Client({
     region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
+    endpoint: `https://${storage.accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: storage.accessKeyId, secretAccessKey: storage.secretAccessKey },
     // R2 does not support the SDK's newer default checksums on presigned requests.
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   });
-  return client;
+}
+
+let client: { signature: string; s3: S3Client } | undefined;
+
+// Built on first use, and again when the credentials are changed.
+function s3() {
+  const storage = config();
+  if (!hasCredentials(storage)) throw new Error("Storage is not configured.");
+  const signature = `${storage.accountId}:${storage.accessKeyId}:${storage.secretAccessKey}`;
+  if (client?.signature !== signature) client = { signature, s3: createStorageClient(storage) };
+  return client.s3;
 }
 
 function publicBucket() {
   if (!isStorageConfigured()) throw new Error("Storage is not configured.");
-  return process.env.R2_BUCKET!;
+  return config().bucket;
 }
 
 function privateBucket() {
   if (!isPrivateStorageConfigured()) throw new Error("Private storage is not configured.");
-  return process.env.R2_PRIVATE_BUCKET!;
+  return config().privateBucket;
 }
 
 function sanitiseFilename(filename: string) {
@@ -206,14 +218,12 @@ export const deleteObject = (key: string) => remove(publicBucket(), key);
 
 // Safe to call without storage configured: returns null.
 export function publicUrl(key: string) {
-  const base = process.env.R2_PUBLIC_URL;
-  if (!base) return null;
-  return `${base.replace(/\/+$/, "")}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  return objectUrl(config().publicUrl, key);
 }
 
 // ---------------------------------------------------------------------------
 // Private bucket (lesson files). Same operations; check isPrivateStorageConfigured()
-// first, they throw when R2_PRIVATE_BUCKET is unset.
+// first, they throw when no private bucket is set.
 // ---------------------------------------------------------------------------
 
 export const privateStorage = {

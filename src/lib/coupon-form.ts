@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { StatusTone } from "@/components/admin/status-badge";
 import { COUPON_CODE_PATTERN, couponDiscountTypes, ORDER_NUMBER_ALPHABET } from "@/lib/commerce";
 import { parseSchedule } from "@/lib/content-status";
+import { currencySymbol } from "@/lib/format";
 
 // Field rules of the coupon form and how a coupon's state is worked out, shared
 // by the actions and the screens. Pure, so client components may import it.
@@ -98,7 +99,7 @@ export const couponFieldsSchema = z
     } else {
       value = Number(v.value);
       if (v.discountType === "PERCENTAGE" && (value < 1 || value > 100)) issue("value", "A percentage must be from 1 to 100.");
-      if (v.discountType === "FIXED" && (value <= 0 || value > COUPON_MAX_AMOUNT)) issue("value", `An amount must be above £0 and at most £${COUPON_MAX_AMOUNT}.`);
+      if (v.discountType === "FIXED" && (value <= 0 || value > COUPON_MAX_AMOUNT)) issue("value", `An amount must be above 0 and at most ${COUPON_MAX_AMOUNT}.`);
     }
 
     const offset = v.timezoneOffset ?? 0;
@@ -173,5 +174,5 @@ export function restrictionSummary(courses: number, categories: number) {
 
 // "10% off", "£5.00 off".
 export function discountLabel(type: "PERCENTAGE" | "FIXED", value: number) {
-  return type === "PERCENTAGE" ? `${Number.isInteger(value) ? value : value.toFixed(2)}% off` : `£${value.toFixed(2)} off`;
+  return type === "PERCENTAGE" ? `${Number.isInteger(value) ? value : value.toFixed(2)}% off` : `${currencySymbol()}${value.toFixed(2)} off`;
 }

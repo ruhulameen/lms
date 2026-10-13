@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { CircleCheck, OctagonX, ShieldAlert } from "lucide-react";
 import { CertificateDesign } from "@/components/certificate/certificate-design";
 import { PrintButton } from "@/components/certificate/print-button";
-import { certificateConfig } from "@/lib/certificate-config";
+import { getSettings } from "@/lib/settings-store";
 import { normaliseCertificateCode } from "@/lib/course";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCertificateByCode } from "@/services/certificate";
@@ -56,7 +56,7 @@ export default async function CertificatePage({ params }: PageProps<"/certificat
         </span>
         <h1 className="mb-2 text-2xl font-extrabold text-red-700">This certificate has been revoked</h1>
         <p className="mb-4 text-sm text-gray-600">
-          Certificate <span className="font-mono font-bold">{certificate.code}</span> was issued by {certificateConfig.organisationName} but is no longer valid.
+          Certificate <span className="font-mono font-bold">{certificate.code}</span> was issued by {getSettings().certificate.organisationName} but is no longer valid.
         </p>
         <Link href="/certificates" className="text-sm font-semibold text-blue-600 hover:underline">
           Verify another certificate
@@ -96,11 +96,12 @@ export default async function CertificatePage({ params }: PageProps<"/certificat
           </div>
         </dl>
         <p className="mt-4 text-xs text-gray-500">
-          Issued by {certificateConfig.organisationName}. To save a copy, choose &ldquo;Save as PDF&rdquo; in the print window.
+          Issued by {getSettings().certificate.organisationName}. To save a copy, choose &ldquo;Save as PDF&rdquo; in the print window.
         </p>
       </section>
 
       <CertificateDesign
+        config={getSettings().certificate}
         learnerName={certificate.learnerName}
         courseTitle={certificate.courseTitle}
         issuedOn={issuedOn}

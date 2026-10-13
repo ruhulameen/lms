@@ -54,6 +54,30 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## Settings — admin editable (2026-10-13)
+
+Decided by the owner: the site is run by a non-technical person, so everything they may need to change is on a screen, keys and passwords included. Tax is left out until the client's needs are known. One currency for the whole site (pounds, dollars or euros), not one per course.
+
+- [x] `setting` table: one row per group, the fields as JSON. Secret fields (Stripe keys, SMTP password, storage secret key) are stored encrypted with a key derived from `BETTER_AUTH_SECRET`, shown only as their last four characters, and never logged.
+- [x] `/admin/settings` with five screens: Site, Certificate, Payments, Email, File storage. New permission `settings.manage`; changes go to the activity log by field name.
+- [x] Site: name, tagline, description, logo, browser tab icon, contact details, social links, sign-up on/off. Used by the header, footer, page titles, panels, receipts and the sign-up page.
+- [x] Certificate: organisation, title, signatory, logo and signature image, with a preview that changes while typing. Applies to certificates already issued. `src/lib/certificate-config.ts` is gone.
+- [x] Payments: currency, "Take payments" switch, how long an unpaid order lives, Stripe secret key and webhook secret, the webhook address to copy, and a "Check Stripe connection" button.
+- [x] Email: from name and address, reply-to, mail server, and a "Send test email" button.
+- [x] File storage: R2 account, both buckets, public address, a connection check, and an "Allow uploads" button that does what `pnpm storage:cors` did.
+- [x] An empty setting falls back to the value in `.env`, so a server set up that way keeps working. Only `DATABASE_URL`, `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` must stay in `.env`.
+- [x] Settings are held in memory (`src/lib/settings-store.ts`), loaded at start-up by `src/instrumentation.ts`, replaced on save, and re-read every 30 seconds in case another process saved them.
+- [x] Unit tests: sealing and opening a secret, how saved values and `.env` values combine, masking. Checked in the browser: saving the name and currency, the Stripe and storage checks, saving and removing a secret, the certificate preview.
+
+### Left to do
+
+- Not tried for real: "Send test email", "Allow uploads", choosing a logo or signature from the media library, sign-up switched off.
+- Orders keep the currency they were placed in and are paid and refunded in it, but the order screens show every amount with the site's current symbol. The Payments screen warns about this.
+- Any https image host is now accepted by the image optimiser, because the storage address can change while the server runs.
+- Changing `BETTER_AUTH_SECRET` makes saved keys unreadable; they then have to be typed in again.
+- Deleting a media file that is in use as a logo, icon or signature leaves a broken image; the media library does not list settings as a use.
+- Later groups: tax, business details for receipts, SEO and tracking, legal pages.
+
 ## Admin dashboard redesign
 
 Built 2026-10-13 in the main session. Not committed.

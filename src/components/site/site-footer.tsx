@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
+import { getSettings } from "@/lib/settings-store";
 
 const columns = [
   {
@@ -34,6 +35,8 @@ const columns = [
 ];
 
 export function SiteFooter() {
+  const site = getSettings().site;
+  const contact = [site.contactEmail, site.contactPhone, site.address].filter(Boolean);
   return (
     <footer className="mt-auto bg-navy pt-16 pb-8 text-gray-300">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -43,13 +46,22 @@ export function SiteFooter() {
               <span className="flex size-8 items-center justify-center rounded bg-white">
                 <BookOpen className="size-5 text-navy" />
               </span>
-              <span className="text-lg font-bold text-white">EdX learning</span>
+              <span className="text-lg font-bold text-white">{site.name}</span>
             </div>
-            <p className="text-xs leading-relaxed text-gray-400">
-              EdX Learning is a trusted online learning platform providing
-              high-quality, flexible and affordable courses to help you achieve
-              your career and personal goals.
-            </p>
+            <p className="text-xs leading-relaxed text-gray-400">{site.description}</p>
+            {contact.length > 0 && (
+              <address className="mt-4 space-y-1 text-xs text-gray-400 not-italic">
+                {site.contactEmail && (
+                  <p>
+                    <a href={`mailto:${site.contactEmail}`} className="transition hover:text-white">
+                      {site.contactEmail}
+                    </a>
+                  </p>
+                )}
+                {site.contactPhone && <p>{site.contactPhone}</p>}
+                {site.address && <p className="whitespace-pre-line">{site.address}</p>}
+              </address>
+            )}
           </div>
           {columns.map((column) => (
             <div key={column.title}>
@@ -72,7 +84,20 @@ export function SiteFooter() {
           ))}
         </div>
         <div className="border-t border-white/10 pt-6 text-center text-[11px] text-gray-400 sm:text-left">
-          <p>© {new Date().getFullYear()} EdX Learning. All rights reserved.</p>
+          <p>
+            © {new Date().getFullYear()} {site.name}. All rights reserved.
+          </p>
+          {site.social.length > 0 && (
+            <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 sm:justify-start">
+              {site.social.map((link) => (
+                <li key={link.label}>
+                  <a href={link.url} target="_blank" rel="noopener noreferrer" className="transition hover:text-white">
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </footer>

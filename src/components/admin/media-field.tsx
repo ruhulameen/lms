@@ -16,11 +16,17 @@ type MediaFieldProps = {
   kind?: MediaKindValue;
   error?: string[];
   hint?: string;
+  // Told of every choice and removal, for forms that preview the image.
+  onChange?: (media: MediaSummary | null) => void;
 };
 
 // Pick one media item for a form: shows a thumbnail and submits the id.
-export function MediaField({ name, label, initial = null, kind = "IMAGE", error, hint }: MediaFieldProps) {
-  const [media, setMedia] = useState<MediaSummary | null>(initial);
+export function MediaField({ name, label, initial = null, kind = "IMAGE", error, hint, onChange }: MediaFieldProps) {
+  const [media, setMediaState] = useState<MediaSummary | null>(initial);
+  function setMedia(next: MediaSummary | null) {
+    setMediaState(next);
+    onChange?.(next);
+  }
   const id = `${name}-field`;
   const message = error?.[0];
 

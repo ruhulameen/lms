@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toDatetimeLocalValue } from "@/lib/content-status";
 import { COUPON_DESCRIPTION_MAX, COUPON_NOTE_MAX, couponTypeLabels, generateCouponCode } from "@/lib/coupon-form";
 import { initialFormState } from "@/lib/form-state";
+import { currencySymbol } from "@/lib/format";
 
 export type CouponFormValues = {
   id?: number;
@@ -170,21 +171,21 @@ export function CouponForm({ mode, coupon, courses, categories, learners, copied
           </FormField>
           <FormField
             id="coupon-value"
-            label={percent ? "Percentage (%)" : "Amount (£)"}
+            label={percent ? "Percentage (%)" : `Amount (${currencySymbol()})`}
             error={errors?.value}
             hint={percent ? "From 1 to 100. 100 makes the order free." : "Taken off the matching courses, never more than their price."}
           >
             {(aria) => (
               <div className="relative">
                 <span aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-slate-500">
-                  {percent ? "%" : "£"}
+                  {percent ? "%" : currencySymbol()}
                 </span>
                 <Input {...aria} name="value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" className="pl-6" />
               </div>
             )}
           </FormField>
         </div>
-        <FormField id="coupon-min" label="Minimum spend (£)" error={errors?.minSpend} hint="Optional. Counted on the courses the coupon applies to, before the discount.">
+        <FormField id="coupon-min" label={`Minimum spend (${currencySymbol()})`} error={errors?.minSpend} hint="Optional. Counted on the courses the coupon applies to, before the discount.">
           {(aria) => <Input {...aria} name="minSpend" inputMode="decimal" defaultValue={values?.minSpend ?? (coupon?.minSpend != null ? String(coupon.minSpend) : "")} autoComplete="off" className="max-w-40" />}
         </FormField>
       </Card>

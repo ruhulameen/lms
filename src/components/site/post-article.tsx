@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/site/user-avatar";
 import { formatPostDate } from "@/lib/blog-post";
 import type { BlogPost } from "@/services/blog";
 import type { getRecommendedCourses } from "@/services/course";
+import { getSettings } from "@/lib/settings-store";
 
 type PostArticleProps = {
   post: BlogPost;
@@ -100,7 +101,7 @@ export function PostArticle({ post, courses, related }: PostArticleProps) {
                 {post.author.bio ? (
                   <p className="mt-1 text-sm leading-relaxed text-gray-600">{post.author.bio}</p>
                 ) : (
-                  <p className="mt-1 text-sm text-gray-500">Author at EdX Learning</p>
+                  <p className="mt-1 text-sm text-gray-500">Author at {getSettings().site.name}</p>
                 )}
               </div>
             </aside>

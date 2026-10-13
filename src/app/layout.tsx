@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
+import { ensureSettings } from "@/lib/settings-store";
 import "./globals.css";
 
 const inter = Inter({
@@ -12,19 +13,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "EdX Learning",
-    template: "%s · EdX Learning",
-  },
-};
+// Name, description and icon come from Settings > Site.
+export async function generateMetadata(): Promise<Metadata> {
+  const { site } = await ensureSettings();
+  return {
+    title: {
+      default: site.name,
+      template: `%s · ${site.name}`,
+    },
+    description: site.description || undefined,
+    icons: site.faviconUrl ? { icon: site.faviconUrl } : undefined,
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const { payment } = await ensureSettings();
   return (
     <html
       lang="en"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* The site currency for price formatting in the browser: see siteCurrency() in src/lib/format.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: `globalThis.__lmsCurrency=${JSON.stringify(payment.currency)}` }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

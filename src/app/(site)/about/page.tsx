@@ -7,6 +7,7 @@ import { SectionBadge } from "@/components/site/section-badge";
 import { unsplash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCourseReviews } from "@/services/review";
+import { getSettings } from "@/lib/settings-store";
 
 export const metadata: Metadata = {
   title: "About Us",
@@ -36,11 +37,12 @@ const stats = [
   },
 ];
 
+// "{site}" is replaced by the site name from Settings > Site.
 const faqs = [
   {
-    question: "What is EdX Learning and how does it work?",
+    question: "What is {site} and how does it work?",
     answer:
-      "EdX Learning is an online learning platform offering accredited courses across healthcare, IT, business, construction, and more. You can browse, purchase, and start learning instantly from any device.",
+      "{site} is an online learning platform offering accredited courses across healthcare, IT, business, construction, and more. You can browse, purchase, and start learning instantly from any device.",
   },
   {
     question: "Are your courses accredited?",
@@ -79,7 +81,7 @@ export default async function AboutPage() {
       <section className="bg-linear-to-br from-[#f0f7ff] to-[#e0f2fe] py-16 lg:py-20">
         <div className={`${container} grid items-center gap-12 lg:grid-cols-2`}>
           <div>
-            <SectionBadge className="mb-5">About EdX Learning</SectionBadge>
+            <SectionBadge className="mb-5">About {getSettings().site.name}</SectionBadge>
             <h1 className="mb-5 text-4xl leading-tight font-extrabold text-navy lg:text-5xl">
               Empowering Careers Through{" "}
               <span className="text-blue-600">Accessible Education</span>
@@ -183,11 +185,11 @@ export default async function AboutPage() {
                 className="group overflow-hidden rounded-xl border border-gray-200 bg-white"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-sm font-semibold text-navy transition hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
-                  {faq.question}
+                  {faq.question.replace("{site}", getSettings().site.name)}
                   <ChevronDown className="size-5 shrink-0 text-gray-400 transition-transform group-open:rotate-180" />
                 </summary>
                 <p className="px-5 pb-5 text-sm leading-relaxed text-gray-600">
-                  {faq.answer}
+                  {faq.answer.replace("{site}", getSettings().site.name)}
                 </p>
               </details>
             ))}

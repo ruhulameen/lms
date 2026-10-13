@@ -2,7 +2,6 @@ import "server-only";
 import type Stripe from "stripe";
 import type { Prisma } from "@/generated/prisma/client";
 import {
-  CURRENCY,
   canTransition,
   checkoutSessionExpiry,
   classifyCheckoutSession,
@@ -16,7 +15,8 @@ import {
 } from "@/lib/commerce";
 import { sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
-import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { getSettings } from "@/lib/settings-store";
+import { canTakePayments, getStripe, isStripeConfigured } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
 import { notify } from "@/services/notification";
 import { releaseCouponUse, reserveCouponUse } from "@/services/coupon";
@@ -51,6 +51,7 @@ const payableOrderSelect = {
   userId: true,
   status: true,
   total: true,
+  currency: true,
   email: true,
   expiresAt: true,
   items: { orderBy: { id: "asc" }, select: { courseTitle: true, total: true } },
@@ -68,7 +69,7 @@ export type StartPaymentResult =
 // same session (Stripe idempotency key per attempt number) and the second
 // Payment insert, which would repeat the session id, is ignored.
 export async function startStripePayment(orderId: number): Promise<StartPaymentResult> {
-  if (!isStripeConfigured()) return { ok: false, error: "Payments are not set up yet.", status: "PENDING" };
+  if (!canTakePayments()) return { ok: false, error: "Payments are not available at the moment.", status: "PENDING" };
 
   // An order past its time is closed, not paid.
   if (await expireOrderIfDue(orderId)) {
@@ -96,7 +97,7 @@ export async function startStripePayment(orderId: number): Promise<StartPaymentR
   const lineItems = order.items.map((item) => ({
     quantity: 1,
     price_data: {
-      currency: CURRENCY.toLowerCase(),
+      currency: order.currency.toLowerCase(),
       unit_amount: toPence(Number(item.total)),
       product_data: { name: item.courseTitle },
     },
@@ -135,7 +136,7 @@ export async function startStripePayment(orderId: number): Promise<StartPaymentR
           orderId: order.id,
           provider: "STRIPE",
           amount: toPounds(totalPence),
-          currency: CURRENCY,
+          currency: order.currency,
           stripeCheckoutSessionId: session.id,
         },
       });
@@ -212,7 +213,7 @@ export async function applyCheckoutSession(
 ): Promise<ApplyResult> {
   const payment = await db.payment.findUnique({
     where: { stripeCheckoutSessionId: session.id },
-    select: { id: true, orderId: true, order: { select: { id: true, status: true, total: true } } },
+    select: { id: true, orderId: true, order: { select: { id: true, status: true, total: true, currency: true } } },
   });
   if (!payment) return { handled: false, reason: "unknown_session" };
   const claimed = session.metadata?.orderId;
@@ -228,7 +229,7 @@ export async function applyCheckoutSession(
       currency: session.currency,
       paymentIntentStatus: intent?.status ?? null,
     },
-    { totalPence: expectedPence },
+    { totalPence: expectedPence, currency: payment.order.currency },
     options.hint,
   );
 
@@ -564,10 +565,10 @@ export async function sweepExpiredOrders(limit = 200, now = new Date()): Promise
 // and is not yet visible to anyone else).
 export async function markFreeOrderPaid(tx: Tx, orderId: number) {
   await tx.payment.create({
-    data: { orderId, provider: "FREE", status: "SUCCEEDED", amount: 0, currency: CURRENCY, paidAt: new Date() },
+    data: { orderId, provider: "FREE", status: "SUCCEEDED", amount: 0, currency: getSettings().payment.currency, paidAt: new Date() },
   });
   await tx.order.update({ where: { id: orderId }, data: { status: "PAID", paidAt: new Date() } });
-  await addOrderEvent(orderId, { type: "PAID", message: "The order total was £0, so no payment was needed." }, tx);
+  await addOrderEvent(orderId, { type: "PAID", message: "The order total was 0, so no payment was needed." }, tx);
 }
 
 // ---------------------------------------------------------------- email

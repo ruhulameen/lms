@@ -53,6 +53,7 @@ model User {
   couponRedemptions   CouponRedemption[]
   personalCoupons     CouponUser[]
   notifications       Notification[]
+  updatedSettings     Setting[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -232,6 +233,20 @@ model EmailOutbox {
   @@index([status, nextTryAt])
   @@index([createdAt])
   @@map("email_outbox")
+}
+
+// Site settings edited at /admin/settings: one row per group ("site",
+// "certificate", "payment", "email", "storage"), the fields as JSON. Secret
+// fields are stored encrypted (src/lib/secret-box.ts). A missing row or field
+// means the default, see src/lib/settings-schema.ts.
+model Setting {
+  key         String   @id @db.VarChar(40)
+  value       Json
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
+
+  @@map("setting")
 }
 
 // ---------------------------------------------------------------------------

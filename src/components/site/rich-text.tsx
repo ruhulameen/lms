@@ -8,14 +8,6 @@ import { cn } from "@/lib/utils";
 // types only: unknown nodes are skipped, nothing is injected as raw HTML, and
 // link and image URLs are checked again here.
 
-function r2Host() {
-  try {
-    return process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).hostname : null;
-  } catch {
-    return null;
-  }
-}
-
 function applyMark(mark: RichTextMark, children: ReactNode, key: string): ReactNode {
   switch (mark.type) {
     case "bold":
@@ -61,12 +53,12 @@ function renderImage(node: RichTextNode, key: string) {
     if (!optimised) {
       try {
         const host = new URL(src).hostname;
-        optimised = host === r2Host() || host === "images.unsplash.com";
+        optimised = host === "images.unsplash.com";
       } catch {
         optimised = false;
       }
     }
-    // Hosts next/image is not configured for are passed through unoptimised.
+    // Other hosts (the media library among them, already behind a CDN) are passed through as they are.
     return <Image key={key} src={src} alt={altText} width={width} height={height} sizes="(min-width: 1024px) 800px, 100vw" unoptimized={!optimised} />;
   }
   // eslint-disable-next-line @next/next/no-img-element -- size unknown, so next/image cannot be used

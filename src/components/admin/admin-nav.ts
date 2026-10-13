@@ -158,7 +158,7 @@ export const adminNav: AdminNavEntry[] = [
       { label: "Roles", icon: Shield, href: "/admin/roles", permission: "role.view" },
     ],
   },
-  { label: "Settings", icon: Settings },
+  { label: "Settings", icon: Settings, href: "/admin/settings", permission: "settings.manage" },
   { label: "Activity Logs", icon: History, href: "/admin/activity-logs", permission: "activity.view" },
 ];
 

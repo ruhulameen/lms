@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { panelHome } from "@/lib/panel";
 import { requireUser } from "@/services/user";
+import { getSettings } from "@/lib/settings-store";
 
 export default async function AdminLayout({
   children,
@@ -29,7 +30,7 @@ export default async function AdminLayout({
         } as React.CSSProperties
       }
     >
-      <AdminSidebar nav={buildAdminNav(user)} />
+      <AdminSidebar nav={buildAdminNav(user)} title={`${getSettings().site.name} Admin`} />
       <SidebarInset className="min-w-0 bg-slate-100">
         <AdminTopbar user={user} />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">{children}</div>

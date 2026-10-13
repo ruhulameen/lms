@@ -4,9 +4,8 @@ import { formatPrice } from "@/lib/format";
 // services load rows, hand plain values in here and store what comes back.
 // Money is whole pence inside this file (prices are Decimal(10,2) pounds in the
 // database), so nothing is ever added up as floating-point pounds.
-// Currency is GBP only; prices include VAT and no tax is calculated.
-
-export const CURRENCY = "GBP";
+// One currency for the whole site, chosen in Settings > Payments; every order
+// records the one it was placed in. Prices include VAT and no tax is calculated.
 
 // ---------------------------------------------------------------------------
 // Money
@@ -307,9 +306,8 @@ export const isPaidStatus = (status: OrderStatusValue) =>
 // Statuses in which the coupon use stays counted.
 export const holdsCouponUse = (status: OrderStatusValue) => status === "PENDING" || isPaidStatus(status);
 
-// A pending order is payable until it expires.
-export const ORDER_EXPIRY_MINUTES = 60;
-export const orderExpiryDate = (now: Date) => new Date(now.getTime() + ORDER_EXPIRY_MINUTES * 60_000);
+// A pending order is payable until it expires (Settings > Payments sets how long).
+export const orderExpiryDate = (now: Date, minutes: number) => new Date(now.getTime() + minutes * 60_000);
 export const isOrderExpired = (order: { status: OrderStatusValue; expiresAt: Date | null }, now: Date) =>
   order.status === "PENDING" && order.expiresAt !== null && order.expiresAt <= now;
 
@@ -397,7 +395,7 @@ export type CheckoutSessionOutcome =
 // arrives on a complete, unpaid session).
 export function classifyCheckoutSession(
   facts: CheckoutSessionFacts,
-  expected: { totalPence: number },
+  expected: { totalPence: number; currency: string },
   hint?: "async_failed",
 ): CheckoutSessionOutcome {
   if (hint === "async_failed") return { kind: "failed", message: "The payment did not go through." };
@@ -405,10 +403,10 @@ export function classifyCheckoutSession(
   if (facts.status !== "complete") return { kind: "open" };
 
   if (facts.paymentStatus === "paid" || facts.paymentStatus === "no_payment_required") {
-    if (facts.amountTotal !== expected.totalPence || facts.currency?.toUpperCase() !== CURRENCY) {
+    if (facts.amountTotal !== expected.totalPence || facts.currency?.toUpperCase() !== expected.currency) {
       return {
         kind: "mismatch",
-        message: `Stripe reported ${formatPence(facts.amountTotal ?? 0)} ${facts.currency?.toUpperCase() ?? "?"} but the order total is ${formatPence(expected.totalPence)} ${CURRENCY}.`,
+        message: `Stripe reported ${formatPence(facts.amountTotal ?? 0)} ${facts.currency?.toUpperCase() ?? "?"} but the order total is ${formatPence(expected.totalPence)} ${expected.currency}.`,
       };
     }
     return { kind: "paid" };
@@ -425,7 +423,7 @@ export function classifyCheckoutSession(
 export function checkoutSessionExpiry(orderExpiresAt: Date | null, now: Date): number {
   const earliest = now.getTime() + 31 * 60_000;
   const latest = now.getTime() + 23 * 60 * 60_000;
-  const wanted = orderExpiresAt ? orderExpiresAt.getTime() : orderExpiryDate(now).getTime();
+  const wanted = orderExpiresAt ? orderExpiresAt.getTime() : orderExpiryDate(now, 60).getTime();
   return Math.floor(Math.min(Math.max(wanted, earliest), latest) / 1000);
 }
 

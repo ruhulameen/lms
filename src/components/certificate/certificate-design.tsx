@@ -1,7 +1,9 @@
 import { Award, GraduationCap } from "lucide-react";
-import { certificateConfig as config } from "@/lib/certificate-config";
+import type { Settings } from "@/lib/settings-schema";
 
 type CertificateDesignProps = {
+  // Organisation, title, signatory and images, from Settings > Certificate.
+  config: Settings["certificate"];
   learnerName: string;
   courseTitle: string;
   // Already formatted, e.g. "13 October 2026".
@@ -26,7 +28,7 @@ const printCss = `
 }
 `;
 
-export function CertificateDesign({ learnerName, courseTitle, issuedOn, code, verifyUrl }: CertificateDesignProps) {
+export function CertificateDesign({ config, learnerName, courseTitle, issuedOn, code, verifyUrl }: CertificateDesignProps) {
   return (
     <>
       <style>{printCss}</style>
@@ -39,9 +41,9 @@ export function CertificateDesign({ learnerName, courseTitle, issuedOn, code, ve
 
         <div className="absolute inset-[5cqw] flex flex-col items-center justify-between text-center">
           <header className="flex flex-col items-center">
-            {config.logoPath ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a fixed local asset sized by the layout
-              <img src={config.logoPath} alt={config.organisationName} className="h-[5cqw] w-auto" />
+            {config.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- an uploaded image sized by the layout
+              <img src={config.logoUrl} alt={config.organisationName} className="h-[5cqw] w-auto" />
             ) : (
               <div className="flex items-center gap-[0.8cqw] text-[#0f2a5c]">
                 <GraduationCap className="size-[3.6cqw]" aria-hidden />
@@ -71,9 +73,9 @@ export function CertificateDesign({ learnerName, courseTitle, issuedOn, code, ve
               </span>
             </div>
             <div className="text-right">
-              {config.signaturePath ? (
-                // eslint-disable-next-line @next/next/no-img-element -- a fixed local asset sized by the layout
-                <img src={config.signaturePath} alt="" className="ml-auto h-[4cqw] w-auto" />
+              {config.signatureUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- an uploaded image sized by the layout
+                <img src={config.signatureUrl} alt="" className="ml-auto h-[4cqw] w-auto" />
               ) : (
                 <p className="text-[2.4cqw] leading-none text-[#0f2a5c] italic">{config.signatoryName}</p>
               )}

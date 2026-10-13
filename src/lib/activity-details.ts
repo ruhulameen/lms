@@ -167,6 +167,8 @@ export function describeActivity(action: string, raw: unknown): string {
       return `Switched coupon ${d.code} off`;
     case "coupon.delete":
       return `Deleted coupon ${d.code}`;
+    case "settings.update":
+      return `Changed ${d.group} settings: ${list(d.fields)}`;
   }
 
   return Object.entries(d)

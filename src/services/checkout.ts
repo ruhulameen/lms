@@ -2,7 +2,6 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { BillingDetails, BillingFormValues } from "@/lib/checkout";
 import {
-  CURRENCY,
   generateOrderNumber,
   isFreeOrder,
   isOrderExpired,
@@ -13,7 +12,8 @@ import {
 } from "@/lib/commerce";
 import { publiclyVisibleWhere } from "@/lib/content-status";
 import { db } from "@/lib/db";
-import { isStripeConfigured } from "@/lib/stripe";
+import { getSettings } from "@/lib/settings-store";
+import { canTakePayments } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
 import { getPricedCart } from "@/services/cart";
 import { evaluateCoupon, reserveCouponUse } from "@/services/coupon";
@@ -123,7 +123,7 @@ export async function placeOrder(user: CurrentUser, billing: BillingDetails): Pr
   const couponId = coupon?.ok ? coupon.couponId : null;
   const couponCode = coupon?.ok ? coupon.code : null;
   const free = isFreeOrder(pricing.totalPence);
-  if (!free && !isStripeConfigured()) return { ok: false, error: "Payments are not set up yet." };
+  if (!free && !canTakePayments()) return { ok: false, error: "Payments are not available at the moment." };
 
   const signature = orderSignature({
     courseIds: cart.lines.map((l) => l.courseId),
@@ -177,7 +177,7 @@ export async function placeOrder(user: CurrentUser, billing: BillingDetails): Pr
           data: {
             orderNumber: generateOrderNumber(),
             userId: user.id,
-            currency: CURRENCY,
+            currency: getSettings().payment.currency,
             subtotal: toPounds(pricing.subtotalPence),
             discountTotal: toPounds(pricing.discountPence),
             total: toPounds(pricing.totalPence),
@@ -185,7 +185,7 @@ export async function placeOrder(user: CurrentUser, billing: BillingDetails): Pr
             couponCode,
             ...billingColumns(billing),
             email: user.email,
-            expiresAt: orderExpiryDate(new Date()),
+            expiresAt: orderExpiryDate(new Date(), getSettings().payment.orderExpiryMinutes),
             items: {
               create: pricing.lines.map((line, i) => ({
                 courseId: line.courseId,

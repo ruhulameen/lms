@@ -89,6 +89,13 @@ export const permissionGroups = [
       { key: "coupon.manage", label: "Manage coupons", description: "Create, edit, switch off and delete coupons" },
     ],
   },
+  {
+    key: "settings",
+    label: "Settings",
+    permissions: [
+      { key: "settings.manage", label: "Manage settings", description: "Change site, certificate, payment, email and file storage settings, including their keys and passwords" },
+    ],
+  },
 ] as const;
 
 // Granted to the instructor role the first time each permission is seeded;

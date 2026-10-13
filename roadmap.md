@@ -149,7 +149,7 @@ Security review, rate limiting, performance, accessibility, test coverage, loggi
 - [x] Roles and permissions
 - [x] Activity logs
 - [x] Revision history (posts: list, view, compare, restore)
-- [ ] Settings
+- [x] Settings (site, certificate, payments, email, file storage; tax, SEO and legal later)
 - [ ] Security
 - [ ] Performance
 - [ ] Accessibility

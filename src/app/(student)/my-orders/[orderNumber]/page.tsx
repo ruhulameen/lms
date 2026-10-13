@@ -13,6 +13,7 @@ import {
 } from "@/lib/commerce";
 import { getOrderByNumber } from "@/services/order";
 import { requireUser } from "@/services/user";
+import { getSettings } from "@/lib/settings-store";
 
 export const metadata: Metadata = {
   title: "Order receipt",
@@ -80,7 +81,7 @@ export default async function OrderReceiptPage({
         <header className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-6">
           <div>
             <p className="text-xs font-bold tracking-widest text-blue-600 uppercase">
-              EdX Learning
+              {getSettings().site.name}
             </p>
             <h1 className="text-2xl font-extrabold text-navy">
               {isPaidStatus(order.status) ? "Receipt" : "Order"}

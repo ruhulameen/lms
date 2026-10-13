@@ -7,6 +7,7 @@ import { SignUpForm } from "@/components/auth/sign-up-form";
 import { panelHome } from "@/lib/panel";
 import { loginHref, safeReturnPath } from "@/lib/return-path";
 import { getCurrentUser } from "@/services/user";
+import { getSettings } from "@/lib/settings-store";
 
 export const metadata: Metadata = {
   title: "Sign up",
@@ -25,9 +26,15 @@ export default async function SignUpPage({
     <AuthCard
       icon={UserPlus}
       title="Create Account"
-      description="Join EdX Learning and start learning today"
+      description={`Join ${getSettings().site.name} and start learning today`}
     >
-      <SignUpForm next={returnTo} />
+      {getSettings().site.allowSignUp ? (
+        <SignUpForm next={returnTo} />
+      ) : (
+        <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          New sign-ups are closed at the moment. If you already have an account, log in below.
+        </p>
+      )}
       <p className="mt-6 text-center text-sm text-gray-600">
         Already have an account?{" "}
         <Link

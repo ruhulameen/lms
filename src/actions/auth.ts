@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { panelHome } from "@/lib/panel";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { safeReturnPath } from "@/lib/return-path";
+import { getSettings } from "@/lib/settings-store";
 import { logActivity } from "@/services/activity";
 import { db } from "@/lib/db";
 import { getCurrentUser, getUserPanel } from "@/services/user";
@@ -113,6 +114,8 @@ export async function signUp(
 ): Promise<AuthState> {
   const name = String(formData.get("name") ?? "");
   const email = String(formData.get("email") ?? "");
+  // Settings > Site can close sign-up; accounts are then made by staff only.
+  if (!getSettings().site.allowSignUp) return { error: "New sign-ups are closed at the moment.", name, email };
   const parsed = signUpSchema.safeParse({
     name,
     email,

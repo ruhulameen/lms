@@ -1,5 +1,6 @@
 import type { StatusTone } from "@/components/admin/status-badge";
 import type { OrderStatusValue } from "@/lib/commerce";
+import { currencySymbol } from "@/lib/format";
 
 // How the admin screens show orders. Pure, so client components may import it.
 // (A helper that belongs in commerce.ts once stage 2a is done with that file.)
@@ -14,7 +15,7 @@ export const orderStatusTones: Record<OrderStatusValue, StatusTone> = {
 };
 
 // Always two decimals in the admin tables so columns line up: "£49.00".
-export const money = (pounds: number) => `£${pounds.toFixed(2)}`;
+export const money = (pounds: number) => `${currencySymbol()}${pounds.toFixed(2)}`;
 
 export const cardBrandLabel = (brand: string) => brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
 

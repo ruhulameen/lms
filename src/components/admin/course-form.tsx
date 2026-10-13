@@ -24,6 +24,7 @@ import { initialFormState } from "@/lib/form-state";
 import type { MediaSummary } from "@/lib/media-types";
 import type { RichTextDocument } from "@/lib/rich-text";
 import { slugify } from "@/lib/slug";
+import { currencySymbol } from "@/lib/format";
 
 type CourseFormProps = {
   mode: "create" | "edit";
@@ -233,10 +234,10 @@ export function CourseForm({
 
         <Card title="Price">
           <div className="grid grid-cols-2 gap-3">
-            <FormField id="course-price" label="Price (£)" error={errors?.price} hint="0 or empty means free.">
+            <FormField id="course-price" label={`Price (${currencySymbol()})`} error={errors?.price} hint="0 or empty means free.">
               {(aria) => <Input {...aria} name="price" inputMode="decimal" defaultValue={values?.price ?? (course ? String(course.price) : "0")} autoComplete="off" />}
             </FormField>
-            <FormField id="course-compare" label="Old price (£)" error={errors?.compareAtPrice} hint="Optional, shown struck through.">
+            <FormField id="course-compare" label={`Old price (${currencySymbol()})`} error={errors?.compareAtPrice} hint="Optional, shown struck through.">
               {(aria) => (
                 <Input {...aria} name="compareAtPrice" inputMode="decimal" defaultValue={values?.compareAtPrice ?? (course?.compareAtPrice != null ? String(course.compareAtPrice) : "")} autoComplete="off" />
               )}

@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { panelHome } from "@/lib/panel";
 import { requireUser } from "@/services/user";
+import { getSettings } from "@/lib/settings-store";
 
 // Same shell as the admin panel, with the instructor's own navigation.
 export default async function InstructorLayout({
@@ -30,7 +31,7 @@ export default async function InstructorLayout({
         } as React.CSSProperties
       }
     >
-      <AdminSidebar nav={buildInstructorNav(user)} title="EdX Instructor" />
+      <AdminSidebar nav={buildInstructorNav(user)} title={`${getSettings().site.name} Instructor`} />
       <SidebarInset className="min-w-0 bg-slate-100">
         <AdminTopbar user={user} accountHref="/instructor/account" />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">{children}</div>

@@ -191,7 +191,7 @@ function NavGroup({
   );
 }
 
-export function AdminSidebar({ nav, title = "EdX Admin" }: AdminSidebarProps) {
+export function AdminSidebar({ nav, title = "Admin" }: AdminSidebarProps) {
   const pathname = usePathname();
   const activeHref = findActiveHref(nav, pathname);
 
@@ -201,7 +201,7 @@ export function AdminSidebar({ nav, title = "EdX Admin" }: AdminSidebarProps) {
         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white">
           <GraduationCap className="size-5 text-sidebar" />
         </div>
-        <span className="text-base font-bold text-white group-data-[collapsible=icon]:hidden">
+        <span className="min-w-0 truncate text-base font-bold text-white group-data-[collapsible=icon]:hidden">
           {title}
         </span>
       </SidebarHeader>

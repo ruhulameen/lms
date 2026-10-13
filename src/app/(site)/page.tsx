@@ -18,10 +18,12 @@ import { SectionBadge } from "@/components/site/section-badge";
 import { unsplash } from "@/lib/format";
 import { getFeaturedCourses } from "@/services/course";
 import { getTestimonials } from "@/services/review";
+import { getSettings } from "@/lib/settings-store";
 
-export const metadata: Metadata = {
-  title: { absolute: "EdX Learning - Get Trained & Certified" },
-};
+export function generateMetadata(): Metadata {
+  const { name, tagline } = getSettings().site;
+  return { title: { absolute: tagline ? `${name} - ${tagline}` : name } };
+}
 
 const heroPoints = [
   { icon: ShieldCheck, label: "100% Online Learning" },
@@ -64,7 +66,7 @@ export default async function HomePage() {
             </SectionBadge>
             <h1 className="mb-5 text-4xl leading-tight font-extrabold text-navy lg:text-5xl">
               Get Trained &amp; Certified <br className="hidden sm:block" />
-              With <span className="text-blue-600">EdX Learning</span>
+              With <span className="text-blue-600">{getSettings().site.name}</span>
             </h1>
             <p className="mb-8 max-w-lg text-lg text-gray-600">
               Flexible, affordable and industry-recognised courses to help you
@@ -212,7 +214,7 @@ export default async function HomePage() {
         <div className={`${container} flex flex-col items-center gap-12 lg:flex-row`}>
           <div className="lg:w-1/3">
             <h2 className="mb-4 text-3xl font-extrabold text-navy">
-              Why Choose EdX Learning?
+              Why Choose {getSettings().site.name}?
             </h2>
             <p className="text-sm leading-relaxed text-gray-600">
               We&apos;re committed to providing high-quality, flexible and

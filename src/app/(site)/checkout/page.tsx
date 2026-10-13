@@ -5,7 +5,7 @@ import { CheckoutSteps } from "@/components/site/checkout-steps";
 import { formatPence, isFreeOrder } from "@/lib/commerce";
 import { formatCoursePrice } from "@/lib/course";
 import { formatPrice } from "@/lib/format";
-import { isStripeConfigured } from "@/lib/stripe";
+import { canTakePayments } from "@/lib/stripe";
 import { loginHref } from "@/lib/return-path";
 import { getPricedCart } from "@/services/cart";
 import { getBillingDefaults } from "@/services/checkout";
@@ -51,7 +51,7 @@ export default async function CheckoutPage() {
         payLabel={
           free ? "Complete order" : `Pay ${formatPence(cart.totalPence)}`
         }
-        canPay={free || isStripeConfigured()}
+        canPay={free || canTakePayments()}
         notice={
           cart.couponError
             ? `Coupon ${cart.couponCode}: ${cart.couponError} It is not applied to your total.`

@@ -34,7 +34,7 @@ export type TimeChartProps = {
   name: string;
   type?: "area" | "column";
   color?: string;
-  // "£" for money; values then show two decimals.
+  // A currency symbol for money; values then show two decimals.
   prefix?: string;
   height?: number;
 };

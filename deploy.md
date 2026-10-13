@@ -299,7 +299,8 @@ pnpm build
 - Install everything, not `--prod`: the build and the database tools are development dependencies.
 - `migrate:deploy` creates the tables. Never run `pnpm migrate` or `pnpm db:push` on the server.
 - The seed creates the `student`, `instructor` and `admin` roles, the permission list and the admin account. With `NODE_ENV=production` it skips the sample courses, learners and posts. It is safe to run again.
-- `R2_PUBLIC_URL` is read at build time (it decides which image host is allowed), so rebuild if you change it.
+- The Stripe, SMTP and R2 values can also be entered in the admin panel under Settings, where they are stored encrypted. A value saved there wins; an empty one falls back to this file. Only `DATABASE_URL`, `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` have to be here.
+- Do not change `BETTER_AUTH_SECRET` once keys have been saved in Settings: they are encrypted with it and would have to be entered again.
 
 ## 6. Allow browser uploads to R2
 
@@ -446,6 +447,6 @@ Copy the dumps off the server as well (to R2 or another machine): a backup on th
 | Build is killed or runs out of memory | Add swap: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`. |
 | Signed in, then signed out straight away | `BETTER_AUTH_URL` does not match the address in the browser (http vs https, or www vs no www). |
 | Uploads fail in the browser | Run `pnpm storage:cors` again; check the R2 token can write to both buckets. |
-| Images from R2 do not show | `R2_PUBLIC_URL` was changed after the build: run `pnpm build` and restart. |
+| Images from R2 do not show | The public address is wrong: check Settings > File storage (or `R2_PUBLIC_URL` in `.env`) against the bucket's address in Cloudflare. |
 | Orders stay "pending" after payment | The webhook is not arriving: check the endpoint's delivery log in Stripe and `STRIPE_WEBHOOK_SECRET`. |
 | No emails arrive | `journalctl -u lms | grep '\[email\]'` shows send failures; failed emails are also in the `email_outbox` table with the error. |

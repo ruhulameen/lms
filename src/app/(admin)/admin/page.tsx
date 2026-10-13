@@ -28,7 +28,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
 import { formatDateInput, formatRangeDates, parseDateRange } from "@/lib/date-range";
-import { formatCount } from "@/lib/format";
+import { currencySymbol, formatCount } from "@/lib/format";
 import { money } from "@/lib/order-display";
 import type { SearchParams } from "@/lib/table-params";
 import { getCommerceDashboard, getDashboard, getEarliestRecordDate } from "@/services/dashboard";
@@ -178,7 +178,7 @@ export default async function AdminDashboardPage({
             {sales.paidOrders === 0 ? (
               <EmptyState title="No paid orders in this period" description="Pick a longer range to see more." />
             ) : (
-              <TimeChart points={sales.revenueSeries} name="Revenue" prefix="£" color="#10b981" />
+              <TimeChart points={sales.revenueSeries} name="Revenue" prefix={currencySymbol()} color="#10b981" />
             )}
           </Panel>
         )}

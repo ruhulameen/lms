@@ -5,6 +5,7 @@ import { couponState, type CouponFields, type CouponState } from "@/lib/coupon-f
 import { db } from "@/lib/db";
 import { logActivity } from "@/services/activity";
 import { notify } from "@/services/notification";
+import { currencySymbol } from "@/lib/format";
 
 // Coupons from the admin's side: the list, one coupon with its restrictions and
 // uses, and create / update / switch / delete. Call after the permission
@@ -232,7 +233,7 @@ function isUniqueViolation(error: unknown) {
 
 // Tells learners a coupon has been reserved for them.
 async function notifyPersonalCoupon(userIds: number[], fields: CouponFields) {
-  const amount = fields.discountType === "PERCENTAGE" ? `${fields.value}%` : `£${fields.value.toFixed(2)}`;
+  const amount = fields.discountType === "PERCENTAGE" ? `${fields.value}%` : `${currencySymbol()}${fields.value.toFixed(2)}`;
   for (const userId of userIds) {
     await notify(userId, {
       type: "coupon.personal",

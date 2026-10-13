@@ -7,6 +7,7 @@ import { assignEnrolment } from "@/actions/enrolment-admin";
 import { FormField, selectClassName } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
 import { initialFormState } from "@/lib/form-state";
+import { currencySymbol } from "@/lib/format";
 
 type AssignEnrolmentFormProps = {
   userId: number;
@@ -44,7 +45,7 @@ export function AssignEnrolmentForm({ userId, courses, defaultCourseId, doneHref
             {courses.map((course) => (
               <option key={course.id} value={course.id}>
                 {course.title}
-                {Number(course.price) > 0 ? ` (£${course.price})` : " (free)"}
+                {Number(course.price) > 0 ? ` (${currencySymbol()}${course.price})` : " (free)"}
               </option>
             ))}
           </select>
