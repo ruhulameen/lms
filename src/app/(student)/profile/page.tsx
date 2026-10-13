@@ -24,13 +24,13 @@ export default async function ProfilePage() {
 
       <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white">
         <div className="h-32 bg-linear-to-r from-blue-900 to-blue-600" />
-        <div className="-mt-12 flex flex-col gap-5 px-6 pb-8 sm:flex-row sm:items-end lg:px-8">
+        <div className="flex flex-col gap-4 px-6 pb-6 sm:flex-row sm:gap-5 lg:px-8">
           <UserAvatar
             name={user.name}
             image={user.image}
-            className="size-24 rounded-2xl border-4 border-white text-3xl shadow-lg"
+            className="-mt-12 size-24 shrink-0 rounded-2xl border-4 border-white text-3xl shadow-lg"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 sm:pt-4">
             <h2 className="mb-1 truncate text-2xl font-extrabold text-navy">
               {user.name}
             </h2>

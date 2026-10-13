@@ -28,6 +28,8 @@ export type CouponRow = {
   minSpend: number | null;
   courseCount: number;
   categoryCount: number;
+  // Learners a personal coupon is reserved for; 0 means anyone.
+  userCount: number;
   // Counted uses (not released) and every redemption ever (a coupon with any cannot be deleted).
   uses: number;
   redemptions: number;
@@ -51,7 +53,7 @@ async function loadRows(now: Date): Promise<CouponRow[]> {
         perUserLimit: true,
         minSpend: true,
         createdAt: true,
-        _count: { select: { courses: true, categories: true } },
+        _count: { select: { courses: true, categories: true, users: true } },
       },
     }),
     db.couponRedemption.groupBy({ by: ["couponId"], where: { releasedAt: null }, _count: { _all: true } }),
@@ -75,6 +77,7 @@ async function loadRows(now: Date): Promise<CouponRow[]> {
       minSpend: c.minSpend === null ? null : Number(c.minSpend),
       courseCount: c._count.courses,
       categoryCount: c._count.categories,
+      userCount: c._count.users,
       uses,
       redemptions: allBy.get(c.id) ?? 0,
       state: couponState({ active: c.active, startsAt: c.startsAt, expiresAt: c.expiresAt, usageLimit: c.usageLimit }, uses, now),
@@ -149,6 +152,7 @@ export async function getCouponForEdit(id: number) {
       minSpend: true,
       courses: { select: { courseId: true } },
       categories: { select: { categoryId: true } },
+      users: { select: { userId: true } },
     },
   });
   if (!coupon) return null;
@@ -171,6 +175,7 @@ export async function getCouponForEdit(id: number) {
     minSpend: coupon.minSpend === null ? null : Number(coupon.minSpend),
     courseIds: coupon.courses.map((c) => c.courseId),
     categoryIds: coupon.categories.map((c) => c.categoryId),
+    userIds: coupon.users.map((u) => u.userId),
     uses,
     redemptions,
     state: couponState(
@@ -215,7 +220,7 @@ export async function listCouponRedemptions(couponId: number) {
 // ---------------------------------------------------------------- changes
 
 type Failure = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
-type Restrictions = { courseIds: number[]; categoryIds: number[] };
+type Restrictions = { courseIds: number[]; categoryIds: number[]; userIds: number[] };
 
 const CODE_TAKEN = "Another coupon already uses this code.";
 const NOT_FOUND = "This coupon no longer exists.";
@@ -224,13 +229,14 @@ function isUniqueViolation(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
-// Keeps only the courses and categories that still exist.
+// Keeps only the courses, categories and learners that still exist.
 async function existingRestrictions(input: Restrictions): Promise<Restrictions> {
-  const [courses, categories] = await Promise.all([
+  const [courses, categories, users] = await Promise.all([
     input.courseIds.length ? db.course.findMany({ where: { id: { in: input.courseIds } }, select: { id: true } }) : [],
     input.categoryIds.length ? db.courseCategory.findMany({ where: { id: { in: input.categoryIds } }, select: { id: true } }) : [],
+    input.userIds.length ? db.user.findMany({ where: { id: { in: input.userIds } }, select: { id: true } }) : [],
   ]);
-  return { courseIds: courses.map((c) => c.id), categoryIds: categories.map((c) => c.id) };
+  return { courseIds: courses.map((c) => c.id), categoryIds: categories.map((c) => c.id), userIds: users.map((u) => u.id) };
 }
 
 const columns = (fields: CouponFields) => ({
@@ -251,7 +257,7 @@ export async function createCoupon(actor: { id: number }, fields: CouponFields, 
   if (await db.coupon.findUnique({ where: { code: fields.code }, select: { id: true } })) {
     return { ok: false, error: CODE_TAKEN, fieldErrors: { code: [CODE_TAKEN] } };
   }
-  const { courseIds, categoryIds } = await existingRestrictions(restrictions);
+  const { courseIds, categoryIds, userIds } = await existingRestrictions(restrictions);
   try {
     const coupon = await db.coupon.create({
       data: {
@@ -259,6 +265,7 @@ export async function createCoupon(actor: { id: number }, fields: CouponFields, 
         createdById: actor.id,
         courses: { create: courseIds.map((courseId) => ({ courseId })) },
         categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
+        users: { create: userIds.map((userId) => ({ userId })) },
       },
       select: { id: true },
     });
@@ -282,14 +289,16 @@ export async function updateCoupon(actor: { id: number }, id: number, fields: Co
   if (await db.coupon.findFirst({ where: { code: fields.code, id: { not: id } }, select: { id: true } })) {
     return { ok: false, error: CODE_TAKEN, fieldErrors: { code: [CODE_TAKEN] } };
   }
-  const { courseIds, categoryIds } = await existingRestrictions(restrictions);
+  const { courseIds, categoryIds, userIds } = await existingRestrictions(restrictions);
   try {
     await db.$transaction(async (tx) => {
       await tx.coupon.update({ where: { id }, data: columns(fields) });
       await tx.couponCourse.deleteMany({ where: { couponId: id } });
       await tx.couponCategory.deleteMany({ where: { couponId: id } });
+      await tx.couponUser.deleteMany({ where: { couponId: id } });
       if (courseIds.length) await tx.couponCourse.createMany({ data: courseIds.map((courseId) => ({ couponId: id, courseId })) });
       if (categoryIds.length) await tx.couponCategory.createMany({ data: categoryIds.map((categoryId) => ({ couponId: id, categoryId })) });
+      if (userIds.length) await tx.couponUser.createMany({ data: userIds.map((userId) => ({ couponId: id, userId })) });
     });
   } catch (error) {
     if (isUniqueViolation(error)) return { ok: false, error: CODE_TAKEN, fieldErrors: { code: [CODE_TAKEN] } };
@@ -346,4 +355,13 @@ export async function getCouponToDuplicate(id: number) {
   const coupon = await getCouponForEdit(id);
   if (!coupon) return null;
   return { ...coupon, id: undefined as number | undefined, sourceCode: coupon.code, code: "", uses: 0, redemptions: 0 };
+}
+
+// Learners to choose from when making a coupon personal.
+export async function listCouponLearnerOptions() {
+  return db.user.findMany({
+    where: { role: { name: "student" } },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    select: { id: true, name: true, email: true },
+  });
 }

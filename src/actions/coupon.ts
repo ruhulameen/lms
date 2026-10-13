@@ -36,7 +36,7 @@ function parse(formData: FormData) {
       } satisfies FormState,
     };
   }
-  return { ok: true as const, fields: parsed.data, restrictions: { courseIds: ids(formData, "courseIds"), categoryIds: ids(formData, "categoryIds") } };
+  return { ok: true as const, fields: parsed.data, restrictions: { courseIds: ids(formData, "courseIds"), categoryIds: ids(formData, "categoryIds"), userIds: ids(formData, "userIds") } };
 }
 
 export async function createCouponAction(_prev: FormState, formData: FormData): Promise<FormState> {

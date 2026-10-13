@@ -51,6 +51,7 @@ model User {
   createdRefunds      Refund[]
   createdCoupons      Coupon[]
   couponRedemptions   CouponRedemption[]
+  personalCoupons     CouponUser[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -1009,6 +1010,8 @@ model Coupon {
   minSpend     Decimal?           @db.Decimal(10, 2)
   courses      CouponCourse[]
   categories   CouponCategory[]
+  // Learners the coupon is reserved for; none means anyone may use it.
+  users        CouponUser[]
   redemptions  CouponRedemption[]
   orders       Order[]
   createdBy    User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -1044,6 +1047,18 @@ model CouponCategory {
 
 // A use of a coupon, taken when the order is placed. releasedAt is set when the
 // order fails, is cancelled or expires: only rows with releasedAt null count.
+// A personal coupon: only the listed learners may use it.
+model CouponUser {
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId Int
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   Int
+
+  @@id([couponId, userId])
+  @@index([userId])
+  @@map("coupon_user")
+}
+
 model CouponRedemption {
   id         Int       @id @default(autoincrement())
   coupon     Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict)

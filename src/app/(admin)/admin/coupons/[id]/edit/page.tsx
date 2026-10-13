@@ -14,7 +14,7 @@ import { money } from "@/lib/order-display";
 import { parseRouteId } from "@/lib/route-id";
 import { firstParam, type SearchParams } from "@/lib/table-params";
 import { listCourseCategoryOptions } from "@/services/course-admin";
-import { getCouponForEdit, listCouponRedemptions } from "@/services/coupon-admin";
+import { getCouponForEdit, listCouponLearnerOptions, listCouponRedemptions } from "@/services/coupon-admin";
 import { listCourseOptions } from "@/services/learners";
 import { can, requirePermission } from "@/services/user";
 
@@ -25,11 +25,12 @@ export default async function EditCouponPage({ params, searchParams }: { params:
   const id = parseRouteId((await params).id);
   if (!id) notFound();
   const query = await searchParams;
-  const [coupon, usage, courses, categories] = await Promise.all([
+  const [coupon, usage, courses, categories, learners] = await Promise.all([
     getCouponForEdit(id),
     listCouponRedemptions(id),
     listCourseOptions(),
     listCourseCategoryOptions(),
+    listCouponLearnerOptions(),
   ]);
   if (!coupon) notFound();
   const canManage = can(viewer, "coupon.manage");
@@ -60,7 +61,7 @@ export default async function EditCouponPage({ params, searchParams }: { params:
         </p>
       )}
 
-      <CouponForm mode="edit" coupon={coupon} courses={courses} categories={categories} readOnly={!canManage} />
+      <CouponForm mode="edit" coupon={coupon} courses={courses} categories={categories} learners={learners} readOnly={!canManage} />
 
       <section aria-labelledby="usage" className="mt-8 max-w-5xl rounded-xl border bg-white">
         <div className="p-4 sm:px-6">

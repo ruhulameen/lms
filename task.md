@@ -54,6 +54,17 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## Offers and personal coupons
+
+Built 2026-10-13 in the main session. Not committed.
+
+- A coupon can be reserved for chosen learners ("Who can use it" on the coupon form, `coupon_user` table). With nobody chosen it stays open to everyone. The cart and checkout refuse it for anyone else.
+- My Offers reads the database: coupons that are switched on, inside their dates, open to the learner and with uses left. Personal ones are marked "Just for you".
+- Checked in the browser as a learner: offers list, a personal coupon applying in the cart, another learner's coupon refused.
+- [ ] Browser check as admin: choosing learners on the coupon form, saving, and the "Personal" line in the coupon list.
+- [ ] Every open coupon shows on every learner's My Offers page. If some codes should stay private (partner or campaign codes), add a "show on My Offers" switch.
+- [ ] The learner picker loads every student; replace with a search box when there are thousands.
+
 ## Email — SMTP and queue
 
 Built 2026-10-13 in the main session. Not committed.

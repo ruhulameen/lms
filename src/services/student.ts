@@ -139,14 +139,6 @@ export async function getRecentActivity(userId: number) {
   }));
 }
 
-export async function getOffers() {
-  return [
-    { code: "WELCOME20", amount: "20%", title: "20% OFF Next Course", description: "Valid on any single course.", tone: "orange" as const },
-    { code: "BUNDLE5", amount: "£5", title: "£5 OFF Any Bundle", description: "Min spend £30.", tone: "blue" as const },
-    { code: "CERT25", amount: "25%", title: "25% OFF Certificate", description: "CPD certificate discount.", tone: "navy" as const },
-  ];
-}
-
 export type Notification = {
   kind: "certificate" | "achievement" | "message" | "offer";
   title: string;

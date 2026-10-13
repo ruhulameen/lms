@@ -32,6 +32,7 @@ export type CouponFormValues = {
   minSpend: number | null;
   courseIds: number[];
   categoryIds: number[];
+  userIds: number[];
   // Counted uses, to warn when the code or the value changes.
   uses: number;
   redemptions: number;
@@ -42,6 +43,7 @@ type CouponFormProps = {
   coupon?: CouponFormValues;
   courses: { id: number; title: string }[];
   categories: { id: number; name: string }[];
+  learners: { id: number; name: string; email: string }[];
   // Saying where a copied coupon came from.
   copiedFrom?: string;
   // Viewers without coupon.manage see the rules but cannot change them.
@@ -80,7 +82,7 @@ function DateTimeInput({ id, name, saved, submitted, error, describedBy }: { id:
   );
 }
 
-export function CouponForm({ mode, coupon, courses, categories, copiedFrom, readOnly }: CouponFormProps) {
+export function CouponForm({ mode, coupon, courses, categories, learners, copiedFrom, readOnly }: CouponFormProps) {
   const [state, formAction, pending] = useActionState(mode === "create" ? createCouponAction : updateCouponAction, initialFormState);
   const errors = state.ok ? undefined : state.fieldErrors;
   const values = state.values;
@@ -235,6 +237,20 @@ export function CouponForm({ mode, coupon, courses, categories, copiedFrom, read
           initialIds={coupon?.categoryIds ?? []}
           noneText="No categories chosen"
           noun={{ one: "category", many: "categories" }}
+        />
+      </Card>
+
+      <Card
+        title="Who can use it"
+        description="Choose learners to make this a personal coupon: only they can use it, and it shows on their My Offers page. Choose nobody and any learner can use it."
+      >
+        <CouponPicker
+          name="userIds"
+          label="Learners"
+          options={learners.map((l) => ({ id: l.id, label: `${l.name} (${l.email})` }))}
+          initialIds={coupon?.userIds ?? []}
+          noneText="Anyone can use it"
+          noun={{ one: "learner", many: "learners" }}
         />
       </Card>
 

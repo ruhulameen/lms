@@ -87,6 +87,8 @@ export type CouponRules = {
   minSpendPence: number | null;
   courseIds: readonly number[];
   categoryIds: readonly number[];
+  // Learners a personal coupon is reserved for; empty means anyone.
+  userIds: readonly number[];
 };
 
 // Uses that count against the limits: redemptions not released, in total and by this learner.
@@ -103,6 +105,7 @@ export function normaliseCouponCode(input: string) {
 
 export const couponRefusalReasons = [
   "unknown",
+  "not_eligible",
   "inactive",
   "not_started",
   "expired",
@@ -116,6 +119,7 @@ export type CouponRefusalReason = (typeof couponRefusalReasons)[number];
 // Shown to the learner as is.
 export const couponRefusalMessages: Record<CouponRefusalReason, string> = {
   unknown: "This coupon code is not valid.",
+  not_eligible: "This coupon is for a specific account. Sign in with that account to use it.",
   inactive: "This coupon is not active.",
   not_started: "This coupon is not valid yet.",
   expired: "This coupon has expired.",
@@ -186,6 +190,8 @@ export type CouponCheckInput = {
   rules: CouponRules | null;
   lines: readonly PricedLine[];
   usage: CouponUsage;
+  // Who is using it; null or omitted when signed out.
+  userId?: number | null;
   now: Date;
 };
 
@@ -210,8 +216,9 @@ const refuse = (reason: CouponRefusalReason): CouponCheckResult => ({
 // Minimum spend is tested against the MATCHING lines' subtotal (before the
 // discount): a "£5 off £50 of Health courses" coupon is not met by £50 of
 // unrelated courses. Checks run in the order of couponRefusalReasons.
-export function checkCoupon({ rules, lines, usage, now }: CouponCheckInput): CouponCheckResult {
+export function checkCoupon({ rules, lines, usage, userId, now }: CouponCheckInput): CouponCheckResult {
   if (!rules) return refuse("unknown");
+  if (rules.userIds.length > 0 && (userId == null || !rules.userIds.includes(userId))) return refuse("not_eligible");
   if (!rules.active) return refuse("inactive");
   if (rules.startsAt && now < rules.startsAt) return refuse("not_started");
   if (rules.expiresAt && now > rules.expiresAt) return refuse("expired");

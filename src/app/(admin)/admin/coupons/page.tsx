@@ -52,7 +52,16 @@ export default async function CouponsPage({ searchParams }: { searchParams: Prom
         </span>
       ),
     },
-    { key: "applies", header: "Applies to", cell: (c) => restrictionSummary(c.courseCount, c.categoryCount) },
+    {
+      key: "applies",
+      header: "Applies to",
+      cell: (c) => (
+        <span>
+          {restrictionSummary(c.courseCount, c.categoryCount)}
+          {c.userCount > 0 && <span className="block text-xs text-slate-500">Personal: {plural(c.userCount, "learner")}</span>}
+        </span>
+      ),
+    },
     {
       key: "limits",
       header: "Limits",

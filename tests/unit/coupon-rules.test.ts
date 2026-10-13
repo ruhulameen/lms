@@ -15,6 +15,7 @@ const rules = (over: Partial<CouponRules> = {}): CouponRules => ({
   minSpendPence: null,
   courseIds: [],
   categoryIds: [],
+  userIds: [],
   ...over,
 });
 const lines: PricedLine[] = [
@@ -69,5 +70,19 @@ describe("splitPence", () => {
   });
   it("gives leftover pence to the largest remainders, earlier first on a tie", () => {
     expect(splitPence(100, [1, 1, 1])).toEqual([34, 33, 33]);
+  });
+});
+
+describe("personal coupons", () => {
+  const personal = rules({ userIds: [7, 9] });
+  const use = (userId: number | null) => checkCoupon({ rules: personal, lines, usage: { total: 0, byUser: 0 }, userId, now });
+
+  it("works for a listed learner", () => {
+    expect(use(9).ok).toBe(true);
+  });
+
+  it("is refused for anyone else and when signed out", () => {
+    expect(use(8)).toMatchObject({ ok: false, reason: "not_eligible" });
+    expect(use(null)).toMatchObject({ ok: false, reason: "not_eligible" });
   });
 });

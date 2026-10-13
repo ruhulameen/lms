@@ -29,6 +29,7 @@ const couponSelect = {
   minSpend: true,
   courses: { select: { courseId: true } },
   categories: { select: { categoryId: true } },
+  users: { select: { userId: true } },
 } satisfies Prisma.CouponSelect;
 
 type CouponRow = Prisma.CouponGetPayload<{ select: typeof couponSelect }>;
@@ -50,6 +51,7 @@ function toLoaded(row: CouponRow): LoadedCoupon {
       minSpendPence: row.minSpend === null ? null : toPence(Number(row.minSpend)),
       courseIds: row.courses.map((c) => c.courseId),
       categoryIds: row.categories.map((c) => c.categoryId),
+      userIds: row.users.map((u) => u.userId),
     },
   };
 }
@@ -96,7 +98,7 @@ export async function evaluateCoupon(
 ): Promise<EvaluatedCoupon> {
   const coupon = await getCouponByCode(code);
   const usage = coupon ? await getCouponUsage(coupon.id, user?.id ?? null, db, options) : { total: 0, byUser: 0 };
-  const result = checkCoupon({ rules: coupon?.rules ?? null, lines, usage, now: new Date() });
+  const result = checkCoupon({ rules: coupon?.rules ?? null, lines, usage, userId: user?.id ?? null, now: new Date() });
   return result.ok ? { ...result, couponId: coupon!.id } : result;
 }
 
@@ -141,6 +143,7 @@ export async function reserveCouponUse(
     rules: coupon ? toLoaded(coupon).rules : null,
     lines: input.lines,
     usage: { total: Number(total), byUser: Number(byUser) },
+    userId: input.userId,
     now,
   });
   if (!result.ok) return result;
@@ -168,3 +171,90 @@ export async function releaseCouponUse(orderId: number, client: Client = db): Pr
   return count > 0;
 }
 
+
+// ---------------------------------------------------------------- offers
+
+export type Offer = {
+  id: number;
+  code: string;
+  description: string | null;
+  discountType: "PERCENTAGE" | "FIXED";
+  value: number;
+  minSpend: number | null;
+  expiresAt: Date | null;
+  // Reserved for this learner (and perhaps a few others) rather than open to all.
+  personal: boolean;
+  // What it can be spent on; both empty means every course.
+  courses: string[];
+  categories: string[];
+  // Uses this learner has left, or null when there is no limit per learner.
+  usesLeft: number | null;
+};
+
+// The coupons this learner could use at checkout right now: switched on,
+// inside their dates, open to them, and with uses left both overall and for
+// them. A coupon limited to courses they already have is left out. Their own
+// unpaid orders do not count as uses, the same as at checkout.
+export async function listOffersForUser(userId: number, now = new Date()): Promise<Offer[]> {
+  const coupons = await db.coupon.findMany({
+    where: {
+      active: true,
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
+        { OR: [{ users: { none: {} } }, { users: { some: { userId } } }] },
+      ],
+    },
+    orderBy: [{ expiresAt: "asc" }, { id: "desc" }],
+    select: {
+      id: true,
+      code: true,
+      description: true,
+      discountType: true,
+      value: true,
+      minSpend: true,
+      expiresAt: true,
+      usageLimit: true,
+      perUserLimit: true,
+      courses: { select: { courseId: true, course: { select: { title: true, status: true } } } },
+      categories: { select: { category: { select: { name: true } } } },
+      _count: { select: { users: true } },
+    },
+  });
+  if (coupons.length === 0) return [];
+
+  const ids = coupons.map((c) => c.id);
+  const counted: Prisma.CouponRedemptionWhereInput = { couponId: { in: ids }, releasedAt: null, NOT: { userId, order: { status: "PENDING" } } };
+  const [totals, mine, owned] = await Promise.all([
+    db.couponRedemption.groupBy({ by: ["couponId"], where: counted, _count: { _all: true } }),
+    db.couponRedemption.groupBy({ by: ["couponId"], where: { ...counted, userId }, _count: { _all: true } }),
+    db.enrolment.findMany({ where: { userId, status: { in: ["ACTIVE", "COMPLETED"] } }, select: { courseId: true } }),
+  ]);
+  const totalBy = new Map(totals.map((t) => [t.couponId, t._count._all]));
+  const mineBy = new Map(mine.map((t) => [t.couponId, t._count._all]));
+  const ownedCourses = new Set(owned.map((e) => e.courseId));
+
+  return coupons.flatMap((c): Offer[] => {
+    const used = mineBy.get(c.id) ?? 0;
+    if (c.usageLimit !== null && (totalBy.get(c.id) ?? 0) >= c.usageLimit) return [];
+    if (c.perUserLimit !== null && used >= c.perUserLimit) return [];
+    // Only for named courses, and none of them is left to buy.
+    const buyable = c.courses.filter((x) => x.course.status === "PUBLISHED" && !ownedCourses.has(x.courseId));
+    if (c.courses.length > 0 && c.categories.length === 0 && buyable.length === 0) return [];
+    return [
+      {
+        id: c.id,
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        value: Number(c.value),
+        minSpend: c.minSpend === null ? null : Number(c.minSpend),
+        expiresAt: c.expiresAt,
+        personal: c._count.users > 0,
+        courses: buyable.map((x) => x.course.title),
+        categories: c.categories.map((x) => x.category.name),
+        usesLeft: c.perUserLimit === null ? null : c.perUserLimit - used,
+      },
+    ];
+  });
+}

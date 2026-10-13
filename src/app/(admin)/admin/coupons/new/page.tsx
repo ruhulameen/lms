@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { parseRouteId } from "@/lib/route-id";
 import { firstParam, type SearchParams } from "@/lib/table-params";
 import { listCourseCategoryOptions } from "@/services/course-admin";
-import { getCouponToDuplicate } from "@/services/coupon-admin";
+import { getCouponToDuplicate, listCouponLearnerOptions } from "@/services/coupon-admin";
 import { listCourseOptions } from "@/services/learners";
 import { requirePermission } from "@/services/user";
 
@@ -15,10 +15,11 @@ export default async function NewCouponPage({ searchParams }: { searchParams: Pr
   await requirePermission("coupon.manage");
   const query = await searchParams;
   const fromId = parseRouteId(firstParam(query.from) ?? "");
-  const [source, courses, categories] = await Promise.all([
+  const [source, courses, categories, learners] = await Promise.all([
     fromId ? getCouponToDuplicate(fromId) : null,
     listCourseOptions(),
     listCourseCategoryOptions(),
+    listCouponLearnerOptions(),
   ]);
 
   return (
@@ -30,6 +31,7 @@ export default async function NewCouponPage({ searchParams }: { searchParams: Pr
         copiedFrom={source?.sourceCode}
         courses={courses}
         categories={categories}
+        learners={learners}
       />
     </>
   );
