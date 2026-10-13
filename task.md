@@ -11,7 +11,7 @@ Made 2026-10-12:
 - Database: MySQL/MariaDB is final (not PostgreSQL).
 - Role names stay as they are: `student`, `instructor`, `admin`. Other roles are created as data.
 - Forms: shadcn fields with server actions; Zod is mandatory for validation. React Hook Form may be added where a form needs it.
-- Email: console logging only for now.
+- Email: console logging only for now. (Changed 2026-10-13: SMTP through a queue, see "Email" below; the console is still used when `SMTP_HOST` is empty.)
 - Storage: Cloudflare R2, through its S3-compatible API (Phase 2 media).
 - Packages are installed with the pnpm CLI (`pnpm add`, `pnpm dlx shadcn add`), never by editing `package.json` by hand.
 
@@ -52,7 +52,19 @@ Phase 5 decisions, made 2026-10-13 (the owner approved every recommendation):
 
 Still open, later phases:
 
-- [ ] Email provider — needed before production.
+- [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
+
+## Email — SMTP and queue
+
+Built 2026-10-13 in the main session. Not committed.
+
+- `sendEmail` (`src/lib/email.ts`) writes the email to the `email_outbox` table and returns; the SMTP send (Nodemailer, `src/lib/mailer.ts`) runs after the response has gone out, so sign-up, checkout and the contact form do not wait on the mail server.
+- A failed send is tried again after 1, 5, 30 and 120 minutes, then given up on (5 attempts). The body is emptied once sent, because it can hold reset links.
+- Checked with a script against a throwaway local SMTP server (delivered, row marked sent) and a dead port (marked failed, retry in 60 s). Unit test for the retry schedule.
+- [ ] Restart `pnpm dev` (the running server still holds the old database client, so any email fails until then), then try the contact form and a password reset.
+- [ ] Choose a provider and fill in `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`; send one real email.
+- [ ] Retries only happen when another email is queued. Add a scheduled job (with `sweepExpiredOrders`) that calls `deliverDueEmails`.
+- [ ] Later: HTML templates, an admin screen for the email log, more emails (enrolment, refund, certificate).
 
 ## Admin rework — employees, roles, learners, course insight
 

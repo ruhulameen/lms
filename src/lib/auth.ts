@@ -25,6 +25,12 @@ async function logPasswordReset(userId: number) {
   } catch {}
 }
 
+// Links in emails point at the site's own pages, never at /api/auth: Better
+// Auth's default `url` is its API route.
+function siteUrl(path: string) {
+  return new URL(path, process.env.BETTER_AUTH_URL ?? "http://localhost:3000").toString();
+}
+
 export const auth = betterAuth({
   appName: "LMS",
   database: prismaAdapter(db, { provider: "mysql" }),
@@ -42,21 +48,21 @@ export const auth = betterAuth({
     onPasswordReset: async ({ user }) => {
       await logPasswordReset(Number(user.id));
     },
-    sendResetPassword: async ({ user, url }) => {
+    sendResetPassword: async ({ user, token }) => {
       await sendEmail({
         to: user.email,
         subject: "Reset your password",
-        text: `Reset your password: ${url}`,
+        text: `Reset your password: ${siteUrl(`/reset-password?token=${encodeURIComponent(token)}`)}`,
       });
     },
   },
   emailVerification: {
     sendOnSignUp: true,
-    sendVerificationEmail: async ({ user, url }) => {
+    sendVerificationEmail: async ({ user, token }) => {
       await sendEmail({
         to: user.email,
         subject: "Verify your email",
-        text: `Verify your email: ${url}`,
+        text: `Verify your email: ${siteUrl(`/verify-email/confirm?token=${encodeURIComponent(token)}`)}`,
       });
     },
   },

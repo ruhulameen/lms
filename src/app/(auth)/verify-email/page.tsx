@@ -14,8 +14,8 @@ const ERRORS: Record<string, string> = {
   invalid_token: "This verification link is invalid.",
 };
 
-// Better Auth redirects here after /api/auth/verify-email, appending `error`
-// on failure; `status=success` is added by our callbackURL.
+// /verify-email/confirm (the emailed link) redirects here, with `error` set
+// on failure or `status=success`.
 export default async function VerifyEmailPage({
   searchParams,
 }: {

@@ -184,6 +184,35 @@ model RateLimit {
   @@map("rate_limit")
 }
 
+enum EmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+// Outgoing email queue: see src/lib/email.ts. A row is written when something
+// asks for an email, and delivered after the response has gone out.
+model EmailOutbox {
+  id        Int         @id @default(autoincrement())
+  to        String
+  subject   String
+  // Emptied once sent, since it can hold sign-in and reset links.
+  text      String      @db.Text
+  status    EmailStatus @default(PENDING)
+  attempts  Int         @default(0)
+  lastError String?     @db.Text
+  // Not tried again before this time (set after a failed attempt).
+  nextTryAt DateTime    @default(now())
+  sentAt    DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([status, nextTryAt])
+  @@index([createdAt])
+  @@map("email_outbox")
+}
+
 // ---------------------------------------------------------------------------
 // Phase 2: CMS
 // ---------------------------------------------------------------------------
