@@ -120,10 +120,9 @@ Fill in the settings described in the table under "4. Configure `.env`" below, w
 
 | Setting | Value with Docker |
 |---|---|
-| `DATABASE_URL` | Ignored. The app always uses the database container. |
-| `DOMAIN` | `beta.example.com`. Caddy gets the HTTPS certificate for it by itself; the DNS record must already point at the server. Use `:80` to serve plain HTTP on the server's IP while there is no domain. |
+| `DATABASE_URL` | Ignored. The app always uses the database container, as `root` with no password. There is nothing to set for the database. |
+| `DOMAIN` | `beta.example.com`. Caddy gets the HTTPS certificate for it by itself; the DNS record must already point at the server. Leave it empty to serve plain HTTP on the server's IP while there is no domain. |
 | `BETTER_AUTH_URL` | The same address with its scheme: `https://beta.example.com` (or `http://SERVER_IP` with `DOMAIN=:80`). |
-| `DB_PASSWORD`, `DB_ROOT_PASSWORD` | Two long random values, letters and numbers only (`openssl rand -hex 24`). Do not change them after the first start: the database keeps the first ones. |
 | `SEED_SAMPLES` | `true` to fill a beta site with the sample courses, learners and blog posts; `false` for an empty site with only the admin account. |
 
 For a beta site use Stripe **test** keys (`sk_test_...`) so no real money moves.
@@ -153,14 +152,14 @@ Set up the Stripe webhook as in step 9 below, put its signing secret in `.env`, 
 | Apply a change in `.env` | `docker compose up -d` |
 | See the log | `docker compose logs -f app` |
 | Stop everything | `docker compose down` |
-| Back up the database | `docker compose exec db sh -c 'mariadb-dump --single-transaction -uroot -p"$MARIADB_ROOT_PASSWORD" lms' \| gzip > lms-$(date +%F).sql.gz` |
+| Back up the database | `docker compose exec db mariadb-dump --single-transaction -uroot lms \| gzip > lms-$(date +%F).sql.gz` |
 | Start again from an empty database | `docker compose down -v` — this deletes every account, order and course |
 
 An update rebuilds the site inside the new container, so the site is down while that runs (about half a minute on a fast machine).
 
 ### A5. Trying it on your own computer
 
-Keep your `pnpm dev` settings in `.env` and put the Docker ones in a second file, `.env.docker`: a copy of `.env` plus `DOMAIN=:80`, the two database passwords, `ENV_FILE=.env.docker`, and `SMTP_HOST=` left empty so no real email is sent. If port 80 is taken, add `HTTP_PORT=8080` and `HTTPS_PORT=8443` and set `BETTER_AUTH_URL=http://localhost:8080`.
+Keep your `pnpm dev` settings in `.env` and put the Docker ones in a second file, `.env.docker`: a copy of `.env` plus `ENV_FILE=.env.docker`, and `SMTP_HOST=` left empty so no real email is sent. If port 80 is taken, add `HTTP_PORT=8080` and `HTTPS_PORT=8443` and set `BETTER_AUTH_URL=http://localhost:8080`.
 
 ```bash
 docker compose --env-file .env.docker -p lms-trial up -d --build
@@ -391,6 +390,7 @@ Copy the dumps off the server as well (to R2 or another machine): a backup on th
 
 - **No scheduled jobs yet.** Two tasks have no trigger of their own: closing unpaid orders after they expire (it happens when someone opens or pays the order) and retrying failed emails (it happens when the next email is sent). Until a scheduled job is added, a quiet site can leave both waiting.
 - **Highcharts licence.** The admin charts use Highcharts, which needs a paid licence on a commercial site.
+- **The Docker database has no password.** It runs as `root` with an empty password to keep the dev and beta setup simple. Only the app container can reach it (no port is published), but set a real user and password in `docker-compose.yml` before the site holds real customer data.
 - **Docker updates have downtime.** The Compose setup builds the site when the container starts, so each update takes the site down for about half a minute to a couple of minutes, depending on the server. Fine for beta; for production, build inside the image instead.
 - **One server, one process.** This guide runs a single Node process, which is enough for a small site. Sessions, rate limits and the email queue are all kept in the database, so running several processes later needs no extra service.
 
