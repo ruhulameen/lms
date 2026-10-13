@@ -1,5 +1,8 @@
-# The whole app on one server: database, app and HTTPS proxy.
+# The app and its database on one server.
 #   docker compose up -d --build
+# The app listens on 127.0.0.1:3000 for the server's own Nginx to proxy to.
+# On a server with no web server of its own, add COMPOSE_PROFILES=caddy to
+# .env and the Caddy container below takes ports 80 and 443 and does HTTPS.
 # Settings come from .env (see .env.example and deploy.md).
 services:
   db:
@@ -34,10 +37,13 @@ services:
       # The database is the `db` service above, whatever .env says.
       DATABASE_URL: mysql://root@db:3306/lms
       SEED_SAMPLES: ${SEED_SAMPLES:-false}
-    expose:
-      - "3000"
+    # Only reachable from the server itself; APP_PORT picks another port when 3000 is taken.
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
 
+  # Optional: only started with COMPOSE_PROFILES=caddy (see the top of this file).
   caddy:
+    profiles: [caddy]
     image: caddy:2
     restart: unless-stopped
     depends_on:

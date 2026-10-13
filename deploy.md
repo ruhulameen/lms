@@ -2,7 +2,7 @@
 
 Two ways to run this app on one Linux server. Both keep files on Cloudflare R2.
 
-- **Docker Compose** (recommended for a beta or dev site): three containers — the app, MariaDB and a proxy that gets its own HTTPS certificate — started with one command.
+- **Docker Compose** (recommended for a beta or dev site): the app and MariaDB in containers, started with one command, behind the server's own Nginx (or, on a server with no web server, a Caddy container that does HTTPS by itself).
 - **By hand**: Node behind Nginx with MariaDB installed on the server. More steps, fewer moving parts once it is running.
 
 Written for Ubuntu 24.04. Replace `example.com` with your domain.
@@ -53,12 +53,12 @@ In `.env`:
 
 | Setting | Value |
 |---|---|
-| `DOMAIN` (Docker only) | `beta.example.com` — no `https://`. For `www` as well: `example.com, www.example.com` |
+| `DOMAIN` (Docker with the Caddy container only) | `beta.example.com` — no `https://`. For `www` as well: `example.com, www.example.com` |
 | `BETTER_AUTH_URL` | `https://beta.example.com` — with `https://`, no trailing slash, and exactly the address people will type |
 
-HTTPS then needs nothing more: with Docker, Caddy gets the certificate on first start; by hand, Certbot does it in step 8.
+HTTPS comes from whichever web server faces the internet: Certbot for the server's Nginx (A4 or step 8), or the Caddy container by itself on first start.
 
-To send `www` visitors to the bare domain with Docker, set `DOMAIN=example.com` and add this block to `docker/Caddyfile`:
+To send `www` visitors to the bare domain with the Caddy container, set `DOMAIN=example.com` and add this block to `docker/Caddyfile`:
 
 ```
 www.example.com {
@@ -121,7 +121,8 @@ Fill in the settings described in the table under "4. Configure `.env`" below, w
 | Setting | Value with Docker |
 |---|---|
 | `DATABASE_URL` | Ignored. The app always uses the database container, as `root` with no password. There is nothing to set for the database. |
-| `DOMAIN` | `beta.example.com`. Caddy gets the HTTPS certificate for it by itself; the DNS record must already point at the server. Leave it empty to serve plain HTTP on the server's IP while there is no domain. |
+| `APP_PORT` | Only if port 3000 is already used on the server (check with `ss -ltnp \| grep :3000`): another free port, e.g. `3100`. |
+| `DOMAIN`, `COMPOSE_PROFILES` | Leave unset when the server has its own Nginx (A4). Only for the Caddy container (A5). |
 | `BETTER_AUTH_URL` | The same address with its scheme: `https://beta.example.com` (or `http://SERVER_IP` with `DOMAIN=:80`). |
 | `SEED_SAMPLES` | `true` to fill a beta site with the sample courses, learners and blog posts; `false` for an empty site with only the admin account. |
 
@@ -134,7 +135,7 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-On its first start the app container applies the database migrations, creates the roles and the admin account, builds the site (under a minute on a fast machine, longer on a small VPS; needs about 2 GB of memory) and then serves it. It is ready when the log says `serving on port 3000`.
+On its first start the app container applies the database migrations, creates the roles and the admin account, builds the site (under a minute on a fast machine, longer on a small VPS; needs about 2 GB of memory) and then serves it. It is ready when the log says `serving on port 3000`. The app now answers on `127.0.0.1:3000` (or `APP_PORT`) on the server only; A4 or A5 puts it on the internet.
 
 Then:
 
@@ -144,7 +145,49 @@ docker compose exec app pnpm storage:cors     # allow browser uploads to R2, onc
 
 Set up the Stripe webhook as in step 9 below, put its signing secret in `.env`, and run `docker compose up -d` again. Then run through "10. Check it works".
 
-### A4. Everyday commands
+### A4. Put it behind the server's Nginx
+
+For a server that already runs Nginx (and perhaps other sites). Create `/etc/nginx/sites-available/lms`, with your domain and, if you set one, your `APP_PORT`:
+
+```nginx
+server {
+    listen 80;
+    server_name beta.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+```bash
+ln -s /etc/nginx/sites-available/lms /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+certbot --nginx -d beta.example.com      # apt install -y certbot python3-certbot-nginx, if it is not there yet
+```
+
+Certbot adds HTTPS to that site and renews the certificate. Other sites on the server are not touched.
+
+### A5. Or, with no web server on the machine: Caddy
+
+On a server where nothing else uses ports 80 and 443, add to `.env`:
+
+```
+COMPOSE_PROFILES=caddy
+DOMAIN=beta.example.com
+```
+
+and run `docker compose up -d`. A Caddy container takes ports 80 and 443 and gets the HTTPS certificate by itself. Do not use this next to an existing Nginx: both want the same ports.
+
+### A6. Everyday commands
 
 | To | Run |
 |---|---|
@@ -157,9 +200,9 @@ Set up the Stripe webhook as in step 9 below, put its signing secret in `.env`, 
 
 An update rebuilds the site inside the new container, so the site is down while that runs (about half a minute on a fast machine).
 
-### A5. Trying it on your own computer
+### A7. Trying it on your own computer
 
-Keep your `pnpm dev` settings in `.env` and put the Docker ones in a second file, `.env.docker`: a copy of `.env` plus `ENV_FILE=.env.docker`, and `SMTP_HOST=` left empty so no real email is sent. If port 80 is taken, add `HTTP_PORT=8080` and `HTTPS_PORT=8443` and set `BETTER_AUTH_URL=http://localhost:8080`.
+Keep your `pnpm dev` settings in `.env` and put the Docker ones in a second file, `.env.docker`: a copy of `.env` plus `ENV_FILE=.env.docker`, `APP_PORT=8080` (3000 is the dev server's), `BETTER_AUTH_URL=http://localhost:8080`, and `SMTP_HOST=` left empty so no real email is sent.
 
 ```bash
 docker compose --env-file .env.docker -p lms-trial up -d --build
@@ -398,7 +441,8 @@ Copy the dumps off the server as well (to R2 or another machine): a backup on th
 
 | Problem | Where to look |
 |---|---|
-| 502 Bad Gateway | The app is not running: `systemctl status lms`, `journalctl -u lms -n 100`. |
+| 502 Bad Gateway | The app is not running: `systemctl status lms`, `journalctl -u lms -n 100` (by hand) or `docker compose logs app` (Docker; it also shows for the half minute the app is building). |
+| `address already in use` or `port is already allocated` when starting Docker | Another program has that port. For port 80 or 443: the server has its own web server, so remove `COMPOSE_PROFILES=caddy` and follow A4. For 3000: set `APP_PORT` to a free port. |
 | Build is killed or runs out of memory | Add swap: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`. |
 | Signed in, then signed out straight away | `BETTER_AUTH_URL` does not match the address in the browser (http vs https, or www vs no www). |
 | Uploads fail in the browser | Run `pnpm storage:cors` again; check the R2 token can write to both buckets. |
