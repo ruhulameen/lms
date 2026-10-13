@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { hasLearnerAccess } from "@/lib/learning";
 import { PAID_ORDER_STATUSES, summariseOrders } from "@/lib/learner-insight";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 import { recalculateEnrolmentProgress } from "@/services/learning";
 
 // Learners from the admin's side: enrolments, progress, assigning and
@@ -341,7 +342,7 @@ export type EnrolmentChange =
 async function reactivate(enrolmentId: number, actorId: number, kind: "assign" | "reactivate"): Promise<EnrolmentChange> {
   const row = await db.enrolment.findUnique({
     where: { id: enrolmentId },
-    select: { id: true, status: true, completedAt: true, user: { select: { name: true } }, course: { select: { title: true } } },
+    select: { id: true, status: true, completedAt: true, userId: true, user: { select: { name: true } }, course: { select: { title: true } } },
   });
   if (!row) return { ok: false, error: "This enrolment no longer exists." };
   const learner = row.user.name;
@@ -359,6 +360,12 @@ async function reactivate(enrolmentId: number, actorId: number, kind: "assign" |
     entity: "enrolment",
     entityId: enrolmentId,
     details: { learner, course, reactivated: true },
+  });
+  await notify(row.userId, {
+    type: "course.access-restored",
+    title: `Your access to ${course} is back`,
+    body: "You can carry on from where you stopped.",
+    link: "/my-courses",
   });
   return { ok: true, enrolmentId, learner, course, reactivated: true };
 }
@@ -392,6 +399,12 @@ export async function assignCourse(actorId: number, userId: number, courseId: nu
       entityId: created.id,
       details: { learner: user.name, course: course.title, reactivated: false },
     });
+    await notify(user.id, {
+      type: "course.assigned",
+      title: `New course: ${course.title}`,
+      body: "This course has been added to your account. You can start it now.",
+      link: "/my-courses",
+    });
     return { ok: true, enrolmentId: created.id, learner: user.name, course: course.title };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -409,7 +422,7 @@ export async function reactivateEnrolment(actorId: number, enrolmentId: number) 
 export async function cancelEnrolment(actorId: number, enrolmentId: number): Promise<EnrolmentChange> {
   const row = await db.enrolment.findUnique({
     where: { id: enrolmentId },
-    select: { status: true, user: { select: { name: true } }, course: { select: { title: true } } },
+    select: { status: true, userId: true, user: { select: { name: true } }, course: { select: { title: true } } },
   });
   if (!row) return { ok: false, error: "This enrolment no longer exists." };
   const learner = row.user.name;
@@ -422,6 +435,12 @@ export async function cancelEnrolment(actorId: number, enrolmentId: number): Pro
     entity: "enrolment",
     entityId: enrolmentId,
     details: { learner, course, from: row.status },
+  });
+  await notify(row.userId, {
+    type: "course.access-cancelled",
+    title: `Your access to ${course} has ended`,
+    body: "Your progress and any certificate are kept. Contact support if this looks wrong.",
+    link: "/contact",
   });
   return { ok: true, enrolmentId, learner, course };
 }

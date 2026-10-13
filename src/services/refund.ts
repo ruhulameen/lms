@@ -5,6 +5,7 @@ import { formatPence, planRefund, toPence, toPounds } from "@/lib/commerce";
 import { db } from "@/lib/db";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 import { addOrderEvent } from "@/services/order";
 
 // Refunds: a whole order or chosen course lines, by an admin with order.refund.
@@ -266,6 +267,13 @@ export async function settleRefund(refundId: number, stripeRefundId: string | nu
     entity: "order",
     entityId: done.orderId,
     details: { orderNumber: done.orderNumber, refundId, amountPence: toPence(done.amount) },
+  });
+  const buyer = await db.order.findUnique({ where: { id: done.orderId }, select: { userId: true } });
+  await notify(buyer?.userId, {
+    type: "order.refunded",
+    title: `Refund of ${formatPence(toPence(done.amount))} for order ${done.orderNumber}`,
+    body: "The money goes back to the card you paid with, usually within 5 to 10 days.",
+    link: `/my-orders/${done.orderNumber}`,
   });
   return { changed: true };
 }

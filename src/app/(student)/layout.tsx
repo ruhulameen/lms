@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/site/site-header";
 import { StudentSidebar } from "@/components/student/student-sidebar";
 import { panelHome } from "@/lib/panel";
 import { VerifyEmailBanner } from "@/components/student/verify-email-banner";
+import { countUnreadNotifications } from "@/services/notification";
 import { isEmailVerified, requireUser } from "@/services/user";
 
 export default async function StudentLayout({
@@ -14,7 +15,7 @@ export default async function StudentLayout({
 }) {
   const user = await requireUser();
   if (user.panel !== "student") redirect(panelHome(user.panel));
-  const verified = await isEmailVerified(user.id);
+  const [verified, unreadNotifications] = await Promise.all([isEmailVerified(user.id), countUnreadNotifications(user.id)]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-gray-800">
@@ -36,6 +37,7 @@ export default async function StudentLayout({
           <div className="print:hidden">
             <StudentSidebar
               user={{ name: user.name, email: user.email, image: user.image }}
+              unreadNotifications={unreadNotifications}
             />
           </div>
           <main className="min-w-0">

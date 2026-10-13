@@ -10,10 +10,24 @@ import { cn } from "@/lib/utils";
 
 type StudentSidebarProps = {
   user: { name: string; email: string; image: string | null };
+  // Shown as a count next to Notifications.
+  unreadNotifications?: number;
 };
 
-export function StudentSidebar({ user }: StudentSidebarProps) {
+export function StudentSidebar({ user, unreadNotifications = 0 }: StudentSidebarProps) {
   const pathname = usePathname();
+  const badge = (href: string, active: boolean) =>
+    href === "/notifications" && unreadNotifications > 0 ? (
+      <span
+        className={cn(
+          "ml-auto rounded-full px-1.5 py-0.5 text-[10px] leading-none font-bold tabular-nums",
+          active ? "bg-white text-blue-600" : "bg-blue-600 text-white",
+        )}
+      >
+        {unreadNotifications > 99 ? "99+" : unreadNotifications}
+        <span className="sr-only"> unread</span>
+      </span>
+    ) : null;
 
   return (
     <aside className="h-fit min-w-0 lg:sticky lg:top-24">
@@ -39,6 +53,7 @@ export function StudentSidebar({ user }: StudentSidebarProps) {
             >
               <item.icon className="size-4" />
               {item.label}
+              {badge(item.href, active)}
             </Link>
           );
         })}
@@ -70,6 +85,7 @@ export function StudentSidebar({ user }: StudentSidebarProps) {
               >
                 <item.icon className="size-4" />
                 {item.label}
+                {badge(item.href, active)}
               </Link>
             );
           })}

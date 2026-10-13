@@ -52,6 +52,7 @@ model User {
   createdCoupons      Coupon[]
   couponRedemptions   CouponRedemption[]
   personalCoupons     CouponUser[]
+  notifications       Notification[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -91,6 +92,25 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@index([permissionId])
   @@map("role_permission")
+}
+
+// Messages shown in a person's panel: written by notify in src/services/notification.ts.
+model Notification {
+  id        Int       @id @default(autoincrement())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  // One of notificationTypes in src/lib/notification.ts, e.g. order.paid.
+  type      String    @db.VarChar(40)
+  title     String
+  body      String?   @db.Text
+  // Where clicking it leads, a path on this site.
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notification")
 }
 
 // Who did what: written by logActivity in src/services/activity.ts.

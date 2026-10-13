@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { backfillCertificateRecords, issueCertificateRecord } from "@/lib/certificate-issue";
 import { db } from "@/lib/db";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 
 // Certificates: issuing (automatic, on course completion), the public lookup
 // and the admin list with revoke / restore. Codes: see src/lib/course.ts.
@@ -21,6 +22,12 @@ export async function issueCertificate(enrolmentId: number) {
       entity: "certificate",
       entityId: record.id,
       details: { course: row?.courseTitle ?? "", code: record.code, enrolmentId },
+    });
+    await notify(row?.userId, {
+      type: "certificate.issued",
+      title: `Course completed: ${row?.courseTitle ?? "your course"}`,
+      body: "Well done. Your certificate is ready to view and print.",
+      link: "/my-certificates",
     });
   }
   return record;

@@ -18,6 +18,7 @@ import { sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 import { releaseCouponUse, reserveCouponUse } from "@/services/coupon";
 import { addOrderEvent, fulfilOrder } from "@/services/order";
 
@@ -423,6 +424,12 @@ async function markAttemptFailed(paymentId: number, orderId: number, message: st
   });
   if (ended) {
     await logActivity({ userId: ended.userId, action: "order.fail", entity: "order", entityId: orderId, details: { orderNumber: ended.orderNumber } });
+    await notify(ended.userId, {
+      type: "order.failed",
+      title: `Payment failed for order ${ended.orderNumber}`,
+      body: "No money was taken. You can add the courses to your cart and try again.",
+      link: `/my-orders/${ended.orderNumber}`,
+    });
   }
 }
 
@@ -570,6 +577,7 @@ export async function sendOrderConfirmedEmail(orderId: number) {
     where: { id: orderId },
     select: {
       orderNumber: true,
+      userId: true,
       email: true,
       total: true,
       billingFirstName: true,
@@ -578,6 +586,12 @@ export async function sendOrderConfirmedEmail(orderId: number) {
   });
   if (!order) return;
   const lines = order.items.map((i) => `  - ${i.courseTitle}: ${formatPence(toPence(Number(i.total)))}`).join("\n");
+  await notify(order.userId, {
+    type: "order.paid",
+    title: `Order ${order.orderNumber} confirmed`,
+    body: `${order.items.map((i) => i.courseTitle).join(", ")} ${order.items.length === 1 ? "is" : "are"} ready in My Courses.`,
+    link: `/my-orders/${order.orderNumber}`,
+  });
   await sendEmail({
     to: order.email,
     subject: `Order ${order.orderNumber} confirmed`,

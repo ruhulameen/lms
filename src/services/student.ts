@@ -138,38 +138,3 @@ export async function getRecentActivity(userId: number) {
     detail: `${row.lesson.course.title} · ${timeAgo(row.completedAt!)}`,
   }));
 }
-
-export type Notification = {
-  kind: "certificate" | "achievement" | "message" | "offer";
-  title: string;
-  description: string;
-  time: string;
-  unread: boolean;
-};
-
-export async function getNotifications(): Promise<
-  { group: string; items: Notification[] }[]
-> {
-  return [
-    {
-      group: "Today",
-      items: [
-        { kind: "certificate", title: "Certificate ready for download", description: "Your Health & Safety certificate is now available.", time: "2h ago", unread: true },
-        { kind: "achievement", title: "Achievement unlocked: 3-course streak!", description: "You completed 3 courses in a row.", time: "5h ago", unread: true },
-      ],
-    },
-    {
-      group: "This week",
-      items: [
-        { kind: "message", title: "Your tutor replied to your question", description: "“Great question — here's a worked example...”", time: "2d ago", unread: true },
-        { kind: "offer", title: "New offer: 15% OFF sitewide", description: "Use code SAVE15NOW at checkout.", time: "3d ago", unread: false },
-      ],
-    },
-    {
-      group: "Earlier",
-      items: [
-        { kind: "certificate", title: "Course completed: Teaching Assistant Level 1–3", description: "Your certificate has been issued.", time: "1w ago", unread: false },
-      ],
-    },
-  ];
-}

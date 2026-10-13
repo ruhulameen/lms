@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 
 // Moderating learner reviews of courses (review.moderate). Learners write
 // them in src/services/review.ts; a new or edited review starts PENDING and
@@ -64,7 +65,7 @@ export type ModerationResult = { ok: true; message: string; courseSlug: string }
 export async function moderateReview(reviewId: number, status: "APPROVED" | "REJECTED", actorId: number): Promise<ModerationResult> {
   const review = await db.courseReview.findUnique({
     where: { id: reviewId },
-    select: { id: true, status: true, rating: true, user: { select: { name: true } }, course: { select: { title: true, slug: true } } },
+    select: { id: true, status: true, rating: true, userId: true, user: { select: { name: true } }, course: { select: { title: true, slug: true } } },
   });
   if (!review) return { ok: false, error: "This review no longer exists." };
   if (review.status !== status) {
@@ -75,6 +76,12 @@ export async function moderateReview(reviewId: number, status: "APPROVED" | "REJ
       entity: "course-review",
       entityId: reviewId,
       details: { learner: review.user.name, course: review.course.title, rating: review.rating, from: review.status },
+    });
+    await notify(review.userId, {
+      type: status === "APPROVED" ? "review.approved" : "review.rejected",
+      title: status === "APPROVED" ? `Your review of ${review.course.title} is published` : `Your review of ${review.course.title} was not published`,
+      body: status === "APPROVED" ? "Thank you. Other learners can now read it on the course page." : "It did not meet our review guidelines. You can edit it and send it again.",
+      link: `/courses/${review.course.slug}`,
     });
   }
   return { ok: true, message: status === "APPROVED" ? "Review approved." : "Review rejected.", courseSlug: review.course.slug };

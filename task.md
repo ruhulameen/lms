@@ -54,6 +54,18 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## Notifications — students
+
+Built 2026-10-13 in the main session. Not committed. Admin and instructor notifications come later; the `notification` table and `notify()` (`src/services/notification.ts`) are already general.
+
+- Student notifications page reads the database: grouped Today / This week / Earlier, unread highlighted, "Mark all as read", 30 per page. Opening one marks it read and goes to its page. Unread count shows next to Notifications in the student menu.
+- Written when: an order is confirmed, a payment fails, a refund completes, an admin assigns a course, access is cancelled or restored, a course is completed (certificate ready), a personal coupon is given, a review is approved or rejected.
+- Checked in the browser with temporary rows: the list, the badge, opening one, mark all as read.
+- [ ] Trigger each event for real once (assign a course, approve a review, give a personal coupon, refund an order) and see the notification arrive: the hooks are only type-checked so far.
+- [ ] In-app only: no extra emails are sent for these events yet (order confirmation already has one).
+- [ ] Not included: quiz results, new lessons on a course, coupon about to expire (needs a scheduled job), account security events, per-learner preferences.
+- [ ] Old notifications are never deleted.
+
 ## Offers and personal coupons
 
 Built 2026-10-13 in the main session. Not committed.

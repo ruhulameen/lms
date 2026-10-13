@@ -15,12 +15,3 @@ export function PageHeading({ title, description, children }: PageHeadingProps) 
     </div>
   );
 }
-
-// Marks pages that still show the design's sample data.
-export function SampleNotice() {
-  return (
-    <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
-      Sample data — offers and notifications are not stored yet.
-    </p>
-  );
-}

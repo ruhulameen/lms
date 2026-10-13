@@ -4,6 +4,7 @@ import { isPaidStatus } from "@/lib/commerce";
 import { couponState, type CouponFields, type CouponState } from "@/lib/coupon-form";
 import { db } from "@/lib/db";
 import { logActivity } from "@/services/activity";
+import { notify } from "@/services/notification";
 
 // Coupons from the admin's side: the list, one coupon with its restrictions and
 // uses, and create / update / switch / delete. Call after the permission
@@ -229,6 +230,19 @@ function isUniqueViolation(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+// Tells learners a coupon has been reserved for them.
+async function notifyPersonalCoupon(userIds: number[], fields: CouponFields) {
+  const amount = fields.discountType === "PERCENTAGE" ? `${fields.value}%` : `£${fields.value.toFixed(2)}`;
+  for (const userId of userIds) {
+    await notify(userId, {
+      type: "coupon.personal",
+      title: `A coupon just for you: ${amount} off`,
+      body: `Use code ${fields.code} at checkout.`,
+      link: "/my-offers",
+    });
+  }
+}
+
 // Keeps only the courses, categories and learners that still exist.
 async function existingRestrictions(input: Restrictions): Promise<Restrictions> {
   const [courses, categories, users] = await Promise.all([
@@ -276,6 +290,7 @@ export async function createCoupon(actor: { id: number }, fields: CouponFields, 
       entityId: coupon.id,
       details: { code: fields.code, discountType: fields.discountType, value: fields.value },
     });
+    if (fields.active) await notifyPersonalCoupon(userIds, fields);
     return { ok: true, id: coupon.id };
   } catch (error) {
     if (isUniqueViolation(error)) return { ok: false, error: CODE_TAKEN, fieldErrors: { code: [CODE_TAKEN] } };
@@ -290,6 +305,8 @@ export async function updateCoupon(actor: { id: number }, id: number, fields: Co
     return { ok: false, error: CODE_TAKEN, fieldErrors: { code: [CODE_TAKEN] } };
   }
   const { courseIds, categoryIds, userIds } = await existingRestrictions(restrictions);
+  // Learners added by this save are told; those who already had it are not told again.
+  const had = new Set((await db.couponUser.findMany({ where: { couponId: id }, select: { userId: true } })).map((u) => u.userId));
   try {
     await db.$transaction(async (tx) => {
       await tx.coupon.update({ where: { id }, data: columns(fields) });
@@ -317,6 +334,7 @@ export async function updateCoupon(actor: { id: number }, id: number, fields: Co
         : {}),
     },
   });
+  if (fields.active) await notifyPersonalCoupon(userIds.filter((userId) => !had.has(userId)), fields);
   return { ok: true, code: fields.code };
 }
 
