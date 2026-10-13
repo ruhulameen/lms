@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { BarChart } from "@/components/admin/bar-chart";
+import { TimeChart } from "@/components/admin/charts";
 import { ContentStatusBadge } from "@/components/admin/content-status-badge";
 import { CourseSubnav } from "@/components/admin/course-subnav";
 import { EmptyState } from "@/components/admin/empty-state";
@@ -156,12 +156,7 @@ export default async function CourseOverviewPage({ params }: { params: Promise<{
               {learners.enrolled === 0 ? (
                 <EmptyState title="No enrolments yet" />
               ) : (
-                <BarChart
-                  data={learners.perMonth}
-                  label={`Enrolments per month over the last 12 months: ${learners.perMonth.map((m) => `${m.date} ${m.count}`).join(", ")}`}
-                  describe={(d) => `${d.date}: ${d.count} enrolment${d.count === 1 ? "" : "s"}`}
-                  formatPeak={(max) => `${max} per month`}
-                />
+                <TimeChart points={learners.perMonth.map((m) => ({ label: m.date, value: m.count }))} name="Enrolments" type="column" height={220} />
               )}
             </Section>
 

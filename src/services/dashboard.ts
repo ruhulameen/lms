@@ -1,12 +1,23 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { formatDateInput, type DateRange } from "@/lib/date-range";
+import { fillBuckets, type DateRange } from "@/lib/date-range";
 import { isPaidStatus, orderStatuses, toPence, toPounds } from "@/lib/commerce";
 import { listActivity } from "@/services/activity";
 import { getOrderSummary } from "@/services/order-admin";
 
 function postStatusCount(rows: { status: string; _count: { _all: number } }[], status: string) {
   return rows.find((r) => r.status === status)?._count._all ?? 0;
+}
+
+// Where "All time" starts: the oldest account, order or enrolment.
+export async function getEarliestRecordDate() {
+  const [user, order, enrolment] = await Promise.all([
+    db.user.aggregate({ _min: { createdAt: true } }),
+    db.order.aggregate({ _min: { createdAt: true } }),
+    db.enrolment.aggregate({ _min: { enrolledAt: true } }),
+  ]);
+  const dates = [user._min.createdAt, order._min.createdAt, enrolment._min.enrolledAt].filter((d): d is Date => d !== null);
+  return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null;
 }
 
 // Admin data: call only after requirePermission("dashboard.view"). Content
@@ -20,6 +31,7 @@ export async function getDashboard(
   },
 ) {
   const inRange = { gte: range.from, lt: range.to };
+  const inPrevious = { gte: range.previousFrom, lt: range.previousTo };
 
   const [
     totalUsers,
@@ -37,6 +49,8 @@ export async function getDashboard(
     completions,
     certificateCount,
     pendingReviews,
+    newEnrolments,
+    previousEnrolments,
   ] = await Promise.all([
     db.user.count(),
     db.role.findMany({
@@ -45,7 +59,7 @@ export async function getDashboard(
     }),
     db.user.groupBy({ by: ["status"], _count: { _all: true } }),
     db.user.count({ where: { createdAt: inRange } }),
-    db.user.count({ where: { createdAt: { gte: range.previousFrom, lt: range.previousTo } } }),
+    range.compare ? db.user.count({ where: { createdAt: inPrevious } }) : null,
     db.user.findMany({ where: { createdAt: inRange }, select: { createdAt: true } }),
     db.user.findMany({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -60,17 +74,9 @@ export async function getDashboard(
     include.enrolments ? db.enrolment.count({ where: { status: "COMPLETED" } }) : null,
     include.certificates ? db.certificate.count({ where: { revokedAt: null } }) : null,
     include.reviews ? db.courseReview.count({ where: { status: "PENDING" } }) : null,
+    include.enrolments ? db.enrolment.count({ where: { enrolledAt: inRange } }) : null,
+    include.enrolments && range.compare ? db.enrolment.count({ where: { enrolledAt: inPrevious } }) : null,
   ]);
-
-  const perDay = new Map<string, number>();
-  for (let i = 0; i < range.days; i++) {
-    const d = new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate() + i);
-    perDay.set(formatDateInput(d), 0);
-  }
-  for (const { createdAt } of signUpDates) {
-    const key = formatDateInput(createdAt);
-    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + 1);
-  }
 
   const statusCount = (status: string) =>
     byStatus.find((s) => s.status === status)?._count._all ?? 0;
@@ -85,7 +91,8 @@ export async function getDashboard(
     },
     signUps,
     previousSignUps,
-    signUpsPerDay: [...perDay].map(([date, count]) => ({ date, count })),
+    // Per day, or per month for long ranges (range.bucket).
+    signUpSeries: fillBuckets(range, signUpDates.map((u) => ({ at: u.createdAt, value: 1 }))),
     recentUsers,
     recentActivity: activity?.rows ?? null,
     content: {
@@ -107,6 +114,8 @@ export async function getDashboard(
       completions,
       certificates: certificateCount,
       pendingReviews,
+      newEnrolments,
+      previousEnrolments,
     },
   };
 }
@@ -117,10 +126,12 @@ export async function getDashboard(
 // - paid orders = orders that are paid, partially refunded or refunded;
 // - average order value = gross paid total / paid orders (before refunds);
 // - refunds = refunded totals of those orders;
-// - revenue by day = the same revenue, per day the order was placed.
+// - revenue series = the same revenue, per day (or month) the order was placed;
+// - previous = the same figures for the period before, null for All time.
 export async function getCommerceDashboard(range: DateRange) {
-  const [summary, paidOrders, latest] = await Promise.all([
+  const [summary, previous, paidOrders, latest] = await Promise.all([
     getOrderSummary({ from: range.from, to: range.to }),
+    range.compare ? getOrderSummary({ from: range.previousFrom, to: range.previousTo }) : null,
     db.order.findMany({
       where: { createdAt: { gte: range.from, lt: range.to }, status: { in: orderStatuses.filter(isPaidStatus) } },
       select: { createdAt: true, total: true, refundedTotal: true },
@@ -132,14 +143,10 @@ export async function getCommerceDashboard(range: DateRange) {
     }),
   ]);
 
-  const perDay = new Map<string, number>();
-  for (let i = 0; i < range.days; i++) {
-    perDay.set(formatDateInput(new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate() + i)), 0);
-  }
-  for (const order of paidOrders) {
-    const key = formatDateInput(order.createdAt);
-    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + toPence(Number(order.total)) - toPence(Number(order.refundedTotal)));
-  }
+  const series = fillBuckets(
+    range,
+    paidOrders.map((o) => ({ at: o.createdAt, value: toPence(Number(o.total)) - toPence(Number(o.refundedTotal)) })),
+  );
 
   const grossPence = toPence(summary.paidTotal);
   const refundedPence = toPence(summary.refundedTotal);
@@ -148,8 +155,16 @@ export async function getCommerceDashboard(range: DateRange) {
     revenue: toPounds(grossPence - refundedPence),
     refunds: summary.refundedTotal,
     averageOrderValue: summary.paidOrders === 0 ? 0 : toPounds(Math.round(grossPence / summary.paidOrders)),
-    // Pounds per day, in `count` so the existing bar chart can draw it.
-    revenuePerDay: [...perDay].map(([date, pence]) => ({ date, count: toPounds(pence) })),
+    // In pounds.
+    revenueSeries: series.map((p) => ({ ...p, value: toPounds(p.value) })),
+    previous: previous
+      ? {
+          paidOrders: previous.paidOrders,
+          revenue: toPounds(toPence(previous.paidTotal) - toPence(previous.refundedTotal)),
+          refunds: previous.refundedTotal,
+          averageOrderValue: previous.paidOrders === 0 ? 0 : toPounds(Math.round(toPence(previous.paidTotal) / previous.paidOrders)),
+        }
+      : null,
     latestOrders: latest.map((o) => ({ id: o.id, orderNumber: o.orderNumber, status: o.status, total: Number(o.total), createdAt: o.createdAt, learner: o.user.name })),
   };
 }

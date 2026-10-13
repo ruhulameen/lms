@@ -1,53 +1,95 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Minus, Plus, Shield, SquarePen } from "lucide-react";
-import { BarChart } from "@/components/admin/bar-chart";
-import { DateRangeFilter } from "@/components/admin/date-range-filter";
+import {
+  Award,
+  BookOpen,
+  GraduationCap,
+  type LucideIcon,
+  MessageSquareWarning,
+  Plus,
+  ReceiptText,
+  RotateCcw,
+  Shield,
+  ShoppingCart,
+  SquarePen,
+  TrendingUp,
+  UserPlus,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { DonutChart, TimeChart } from "@/components/admin/charts";
 import { ContentStatusBadge } from "@/components/admin/content-status-badge";
+import { DateRangePicker } from "@/components/admin/date-range-picker";
 import { EmptyState } from "@/components/admin/empty-state";
-import { PageHeader } from "@/components/admin/page-header";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
+import { PageHeader } from "@/components/admin/page-header";
+import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { describeActivity, formatDate, formatDateTime } from "@/lib/activity-details";
-import { parseDateRange } from "@/lib/date-range";
+import { formatDateInput, formatRangeDates, parseDateRange } from "@/lib/date-range";
 import { formatCount } from "@/lib/format";
 import { money } from "@/lib/order-display";
 import type { SearchParams } from "@/lib/table-params";
-import { getCommerceDashboard, getDashboard } from "@/services/dashboard";
+import { getCommerceDashboard, getDashboard, getEarliestRecordDate } from "@/services/dashboard";
 import { can, requirePermission } from "@/services/user";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
 
-function Card({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+function Panel({
+  title,
+  description,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <section aria-label={title} className={`rounded-xl border bg-white p-4 sm:p-5 ${className ?? ""}`}>
-      <h2 className="mb-3 text-sm font-semibold text-slate-500">{title}</h2>
+    <section aria-label={title} className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,42,92,0.04)] ${className ?? ""}`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+        </div>
+        {action}
+      </div>
       {children}
     </section>
   );
 }
 
-function Change({ current, previous }: { current: number; previous: number }) {
-  if (current === previous) {
-    return (
-      <p className="mt-1 flex items-center gap-1 text-sm text-slate-500">
-        <Minus className="size-4" aria-hidden /> Same as previous period ({previous})
-      </p>
-    );
-  }
-  const up = current > previous;
-  const Icon = up ? ArrowUp : ArrowDown;
-  const percent = previous === 0 ? null : Math.round((Math.abs(current - previous) / previous) * 100);
+const viewAll = (href: string, label = "View all") => (
+  <Link href={href} className="shrink-0 text-sm font-medium text-blue-700 hover:underline">
+    {label}
+  </Link>
+);
+
+// One row of a totals list: icon, label, figure. For totals that do not depend on the date range.
+function Snapshot({ icon: Icon, label, value, href, note }: { icon: LucideIcon; label: string; value: number; href: string; note?: React.ReactNode }) {
   return (
-    <p className={`mt-1 flex items-center gap-1 text-sm ${up ? "text-emerald-700" : "text-red-700"}`}>
-      <Icon className="size-4" aria-hidden />
-      {up ? "Up" : "Down"} {percent === null ? `from ${previous}` : `${percent}% from ${previous}`} in the previous period
-    </p>
+    <li>
+      <Link href={href} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-slate-50">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          <Icon className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-slate-700">{label}</span>
+          {note && <span className="block text-xs text-amber-700">{note}</span>}
+        </span>
+        <span className="text-base font-bold text-[#0f2a5c] tabular-nums">{formatCount(value)}</span>
+      </Link>
+    </li>
   );
 }
+
+const ROLE_COLOURS = ["#2563eb", "#0f2a5c", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#64748b"];
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -55,19 +97,26 @@ export default async function AdminDashboardPage({
   searchParams: Promise<SearchParams>;
 }) {
   const user = await requirePermission("dashboard.view");
-  const range = parseDateRange(await searchParams);
-  const data = await getDashboard(range, can(user, "activity.view"), {
-    posts: can(user, "post.view"),
-    media: can(user, "media.view"),
-    courses: can(user, "course.view"),
-    enrolments: can(user, "enrolment.view"),
-    certificates: can(user, "certificate.view"),
-    reviews: can(user, "review.moderate"),
-  });
-  const sales = can(user, "order.view") ? await getCommerceDashboard(range) : null;
+  const params = await searchParams;
+  // "All time" starts at the first account; only looked up when asked for.
+  const earliest = params.range === "all" ? await getEarliestRecordDate() : null;
+  const range = parseDateRange(params, new Date(), { earliest });
+  const [data, sales] = await Promise.all([
+    getDashboard(range, can(user, "activity.view"), {
+      posts: can(user, "post.view"),
+      media: can(user, "media.view"),
+      courses: can(user, "course.view"),
+      enrolments: can(user, "enrolment.view"),
+      certificates: can(user, "certificate.view"),
+      reviews: can(user, "review.moderate"),
+    }),
+    can(user, "order.view") ? getCommerceDashboard(range) : null,
+  ]);
   const learning = data.learning;
   const showLearning =
     learning.courses !== null || learning.activeEnrolments !== null || learning.certificates !== null || learning.pendingReviews !== null;
+  const per = range.bucket === "month" ? "month" : "day";
+  const lastDay = new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate() - 1);
 
   const quickActions = [
     can(user, "post.create") && { href: "/admin/blog/new", label: "New post", icon: SquarePen },
@@ -79,136 +128,134 @@ export default async function AdminDashboardPage({
     <>
       <PageHeader
         title="Dashboard"
-        description={`Welcome back, ${user.name}.`}
-        actions={quickActions.map((a) => (
-          <Button key={a.href} variant="outline" render={<Link href={a.href} />}>
-            <a.icon aria-hidden /> {a.label}
-          </Button>
-        ))}
+        description={`Welcome back, ${user.name}. Showing ${formatRangeDates(range.from, range.to)}.`}
+        actions={
+          <>
+            {quickActions.map((a) => (
+              <Button key={a.href} variant="outline" className="h-10 bg-white" render={<Link href={a.href} />}>
+                <a.icon aria-hidden /> {a.label}
+              </Button>
+            ))}
+            <DateRangePicker
+              // Remounts when the range changes, so the calendar opens on the new dates.
+              key={`${range.preset}-${formatDateInput(range.from)}-${formatDateInput(lastDay)}`}
+              basePath="/admin"
+              preset={range.preset}
+              from={formatDateInput(range.from)}
+              to={formatDateInput(lastDay)}
+            />
+          </>
+        }
       />
 
-      <DateRangeFilter basePath="/admin" range={range} />
-
-      <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <Card title="Total users">
-          <p className="text-3xl font-extrabold text-[#0f2a5c]">{formatCount(data.totalUsers)}</p>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-            {data.byRole.map((r) => (
-              <li key={r.name}>
-                {r.name}: <span className="font-medium">{formatCount(r.count)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card title={`New sign-ups (${range.label})`}>
-          <p className="text-3xl font-extrabold text-[#0f2a5c]">{formatCount(data.signUps)}</p>
-          <Change current={data.signUps} previous={data.previousSignUps} />
-        </Card>
-        <Card title="Accounts by status" className="md:col-span-2">
-          <ul className="flex flex-wrap gap-3">
-            <li className="flex items-center gap-2"><StatusBadge label="Active" tone="success" /> <span className="font-semibold">{formatCount(data.byStatus.ACTIVE)}</span></li>
-            <li className="flex items-center gap-2"><StatusBadge label="Suspended" tone="warning" /> <span className="font-semibold">{formatCount(data.byStatus.SUSPENDED)}</span></li>
-            <li className="flex items-center gap-2"><StatusBadge label="Banned" tone="danger" /> <span className="font-semibold">{formatCount(data.byStatus.BANNED)}</span></li>
-          </ul>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {sales && (
+          <>
+            <StatCard label="Revenue" value={money(sales.revenue)} icon={Wallet} tone="emerald" current={sales.revenue} previous={sales.previous?.revenue} note={sales.previous ? undefined : "Paid minus refunded"} />
+            <StatCard label="Paid orders" value={formatCount(sales.paidOrders)} icon={ShoppingCart} tone="blue" current={sales.paidOrders} previous={sales.previous?.paidOrders} />
+            <StatCard label="Average order value" value={money(sales.averageOrderValue)} icon={ReceiptText} tone="violet" current={sales.averageOrderValue} previous={sales.previous?.averageOrderValue} note={sales.previous ? undefined : "Before refunds"} />
+            <StatCard label="Refunds" value={money(sales.refunds)} icon={RotateCcw} tone="rose" current={sales.refunds} previous={sales.previous?.refunds} lowerIsBetter />
+          </>
+        )}
+        <StatCard label="New sign-ups" value={formatCount(data.signUps)} icon={UserPlus} tone="amber" current={data.signUps} previous={data.previousSignUps} />
+        {learning.newEnrolments !== null && (
+          <StatCard label="New enrolments" value={formatCount(learning.newEnrolments)} icon={GraduationCap} tone="blue" current={learning.newEnrolments} previous={learning.previousEnrolments} />
+        )}
+        {learning.activeEnrolments !== null && (
+          <StatCard label="Active enrolments" value={formatCount(learning.activeEnrolments)} icon={TrendingUp} tone="emerald" note="Right now, all time" />
+        )}
+        <StatCard label="Total users" value={formatCount(data.totalUsers)} icon={Users} tone="slate" note="Right now, all time" />
       </div>
 
-      {showLearning && (
-        <Card title="Learning" className="mt-6">
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
-            {learning.courses && (
-              <li>
-                <p className="text-xs font-medium text-slate-500">Courses</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/courses" className="hover:underline">{formatCount(learning.courses.total)}</Link>
-                </p>
-                <p className="text-xs text-slate-500">{formatCount(learning.courses.published)} published</p>
-              </li>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        {sales && (
+          <Panel
+            title="Revenue"
+            description={`Per ${per}, by the date the order was placed. ${range.label}.`}
+            action={viewAll("/admin/orders", "Orders")}
+            className="xl:col-span-2"
+          >
+            {sales.paidOrders === 0 ? (
+              <EmptyState title="No paid orders in this period" description="Pick a longer range to see more." />
+            ) : (
+              <TimeChart points={sales.revenueSeries} name="Revenue" prefix="£" color="#10b981" />
             )}
-            {learning.activeEnrolments !== null && (
-              <li>
-                <p className="text-xs font-medium text-slate-500">Active enrolments</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/enrolments?status=ACTIVE" className="hover:underline">{formatCount(learning.activeEnrolments)}</Link>
-                </p>
-              </li>
-            )}
-            {learning.completions !== null && (
-              <li>
-                <p className="text-xs font-medium text-slate-500">Completions</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/enrolments?status=COMPLETED" className="hover:underline">{formatCount(learning.completions)}</Link>
-                </p>
-              </li>
-            )}
-            {learning.certificates !== null && (
-              <li>
-                <p className="text-xs font-medium text-slate-500">Certificates issued</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/certificates" className="hover:underline">{formatCount(learning.certificates)}</Link>
-                </p>
-              </li>
-            )}
-            {learning.pendingReviews !== null && (
-              <li>
-                <p className="text-xs font-medium text-slate-500">Reviews to moderate</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/reviews" className="hover:underline">{formatCount(learning.pendingReviews)}</Link>
-                </p>
-                {learning.pendingReviews > 0 && <p className="text-xs text-amber-700">Waiting for a decision</p>}
-              </li>
-            )}
-          </ul>
-        </Card>
-      )}
+          </Panel>
+        )}
 
-      {sales && (
-        <>
-          <Card title={`Sales (${range.label})`} className="mt-6">
-            <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
-              <li>
-                <p className="text-xs font-medium text-slate-500">Revenue</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.revenue)}</p>
-                <p className="text-xs text-slate-500">Paid minus refunded</p>
-              </li>
-              <li>
-                <p className="text-xs font-medium text-slate-500">Paid orders</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/orders" className="hover:underline">{formatCount(sales.paidOrders)}</Link>
-                </p>
-              </li>
-              <li>
-                <p className="text-xs font-medium text-slate-500">Average order value</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.averageOrderValue)}</p>
-                <p className="text-xs text-slate-500">Before refunds</p>
-              </li>
-              <li>
-                <p className="text-xs font-medium text-slate-500">Refunds</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">{money(sales.refunds)}</p>
-              </li>
-            </ul>
-            <div className="mt-5 border-t pt-4">
-              <p className="mb-2 text-xs font-medium text-slate-500">Revenue per day (by order date)</p>
-              {sales.paidOrders === 0 ? (
-                <EmptyState title="No paid orders in this period" description="Pick a longer range to see more." />
-              ) : (
-                <BarChart
-                  data={sales.revenuePerDay}
-                  label={`Revenue per day, ${range.label}: ${money(sales.revenue)} in total`}
-                  describe={(d) => `${d.date}: ${money(d.count)}`}
-                  formatPeak={(max) => `${money(max)} per day`}
+        <Panel title="Users by role" description="Every account, right now.">
+          <DonutChart
+            name="Users by role"
+            total={formatCount(data.totalUsers)}
+            caption="users"
+            slices={data.byRole.filter((r) => r.count > 0).map((r, i) => ({ name: r.name, value: r.count, color: ROLE_COLOURS[i % ROLE_COLOURS.length] }))}
+          />
+          <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+            {data.byRole
+              .filter((r) => r.count > 0)
+              .map((r, i) => (
+                <li key={r.name} className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: ROLE_COLOURS[i % ROLE_COLOURS.length] }} aria-hidden />
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                  <span className="font-semibold tabular-nums">{formatCount(r.count)}</span>
+                </li>
+              ))}
+          </ul>
+          <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t pt-3 text-sm">
+            <li className="flex items-center gap-1.5"><StatusBadge label="Active" tone="success" /> <span className="font-semibold tabular-nums">{formatCount(data.byStatus.ACTIVE)}</span></li>
+            <li className="flex items-center gap-1.5"><StatusBadge label="Suspended" tone="warning" /> <span className="font-semibold tabular-nums">{formatCount(data.byStatus.SUSPENDED)}</span></li>
+            <li className="flex items-center gap-1.5"><StatusBadge label="Banned" tone="danger" /> <span className="font-semibold tabular-nums">{formatCount(data.byStatus.BANNED)}</span></li>
+          </ul>
+        </Panel>
+
+        <Panel title="Sign-ups" description={`New accounts per ${per}. ${range.label}.`} className="xl:col-span-2">
+          {data.signUps === 0 ? (
+            <EmptyState title="No sign-ups in this period" description="Pick a longer range to see more." />
+          ) : (
+            <TimeChart points={data.signUpSeries} name="Sign-ups" type="column" color="#2563eb" height={240} />
+          )}
+        </Panel>
+
+        {showLearning && (
+          <Panel title="Learning" description="Totals right now.">
+            <ul className="divide-y divide-slate-100">
+              {learning.courses && (
+                <Snapshot icon={BookOpen} label={`Courses, ${formatCount(learning.courses.published)} published`} value={learning.courses.total} href="/admin/courses" />
+              )}
+              {learning.activeEnrolments !== null && (
+                <Snapshot icon={GraduationCap} label="Active enrolments" value={learning.activeEnrolments} href="/admin/enrolments?status=ACTIVE" />
+              )}
+              {learning.completions !== null && (
+                <Snapshot icon={TrendingUp} label="Completions" value={learning.completions} href="/admin/enrolments?status=COMPLETED" />
+              )}
+              {learning.certificates !== null && (
+                <Snapshot icon={Award} label="Certificates issued" value={learning.certificates} href="/admin/certificates" />
+              )}
+              {learning.pendingReviews !== null && (
+                <Snapshot
+                  icon={MessageSquareWarning}
+                  label="Reviews to moderate"
+                  value={learning.pendingReviews}
+                  href="/admin/reviews"
+                  note={learning.pendingReviews > 0 ? "Waiting for a decision" : undefined}
                 />
               )}
-            </div>
-          </Card>
+            </ul>
+          </Panel>
+        )}
+      </div>
 
-          <Card title="Latest orders" className="mt-6">
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {sales && (
+          <Panel title="Latest orders" action={viewAll("/admin/orders")}>
             {sales.latestOrders.length === 0 ? (
               <EmptyState title="No orders yet" />
             ) : (
               <ul className="divide-y">
                 {sales.latestOrders.map((o) => (
-                  <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                  <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm">
                     <span className="min-w-0">
                       <Link href={`/admin/orders/${o.id}`} className="font-mono text-xs font-medium text-blue-700 hover:underline">{o.orderNumber}</Link>
                       <span className="block truncate text-xs text-slate-500">{o.learner} - {formatDateTime(o.createdAt)}</span>
@@ -221,61 +268,16 @@ export default async function AdminDashboardPage({
                 ))}
               </ul>
             )}
-          </Card>
-        </>
-      )}
-
-      {(data.content.posts || data.content.media !== null) && (
-        <Card title="Content" className="mt-6">
-          <div className="flex flex-wrap gap-x-10 gap-y-4">
-            {data.content.posts && (
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-500">Blog posts</p>
-                <ul className="flex flex-wrap gap-4">
-                  <li className="flex items-center gap-2"><ContentStatusBadge status="PUBLISHED" /> <span className="font-semibold">{formatCount(data.content.posts.published)}</span></li>
-                  <li className="flex items-center gap-2"><ContentStatusBadge status="SCHEDULED" /> <span className="font-semibold">{formatCount(data.content.posts.scheduled)}</span></li>
-                  <li className="flex items-center gap-2">
-                    <ContentStatusBadge status="PENDING_REVIEW" /> <span className="font-semibold">{formatCount(data.content.posts.pendingReview)}</span>
-                    {data.content.posts.pendingReview > 0 && can(user, "post.publish") && (
-                      <Link href="/admin/blog?status=PENDING_REVIEW" className="text-sm font-medium text-blue-700 hover:underline">Review them</Link>
-                    )}
-                  </li>
-                  <li className="flex items-center gap-2"><ContentStatusBadge status="DRAFT" /> <span className="font-semibold">{formatCount(data.content.posts.drafts)}</span></li>
-                </ul>
-              </div>
-            )}
-            {data.content.media !== null && (
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-500">Media library</p>
-                <p className="text-2xl font-extrabold text-[#0f2a5c]">
-                  <Link href="/admin/media" className="hover:underline">{formatCount(data.content.media)}</Link>
-                  <span className="ml-2 text-sm font-normal text-slate-500">file{data.content.media === 1 ? "" : "s"}</span>
-                </p>
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      <Card title={`Sign-ups per day (${range.label})`} className="mt-6">
-        {data.signUps === 0 ? (
-          <EmptyState title="No sign-ups in this period" description="Pick a longer range to see more." />
-        ) : (
-          <BarChart
-            data={data.signUpsPerDay}
-            label={`Sign-ups per day, ${range.label}: ${data.signUps} in total`}
-          />
+          </Panel>
         )}
-      </Card>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card title="Newest users">
+        <Panel title="Newest users">
           {data.recentUsers.length === 0 ? (
             <EmptyState title="No users yet" />
           ) : (
             <ul className="divide-y">
               {data.recentUsers.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <li key={u.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span className="min-w-0">
                     {can(user, "user.view") ? (
                       <Link href={`/admin/employees/${u.id}`} className="font-medium text-blue-700 hover:underline">{u.name}</Link>
@@ -292,16 +294,48 @@ export default async function AdminDashboardPage({
               ))}
             </ul>
           )}
-        </Card>
+        </Panel>
+
+        {(data.content.posts || data.content.media !== null) && (
+          <Panel title="Content" description="Totals right now.">
+            <div className="grid gap-5">
+              {data.content.posts && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-slate-500">Blog posts</p>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                    <li className="flex items-center gap-1.5"><ContentStatusBadge status="PUBLISHED" /> <span className="font-semibold tabular-nums">{formatCount(data.content.posts.published)}</span></li>
+                    <li className="flex items-center gap-1.5"><ContentStatusBadge status="SCHEDULED" /> <span className="font-semibold tabular-nums">{formatCount(data.content.posts.scheduled)}</span></li>
+                    <li className="flex items-center gap-1.5">
+                      <ContentStatusBadge status="PENDING_REVIEW" /> <span className="font-semibold tabular-nums">{formatCount(data.content.posts.pendingReview)}</span>
+                      {data.content.posts.pendingReview > 0 && can(user, "post.publish") && (
+                        <Link href="/admin/blog?status=PENDING_REVIEW" className="font-medium text-blue-700 hover:underline">Review them</Link>
+                      )}
+                    </li>
+                    <li className="flex items-center gap-1.5"><ContentStatusBadge status="DRAFT" /> <span className="font-semibold tabular-nums">{formatCount(data.content.posts.drafts)}</span></li>
+                  </ul>
+                </div>
+              )}
+              {data.content.media !== null && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-500">Media library</p>
+                  <p className="text-lg font-bold text-[#0f2a5c]">
+                    <Link href="/admin/media" className="hover:underline">{formatCount(data.content.media)}</Link>
+                    <span className="ml-1.5 text-sm font-normal text-slate-500">file{data.content.media === 1 ? "" : "s"}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </Panel>
+        )}
 
         {data.recentActivity && (
-          <Card title="Recent activity">
+          <Panel title="Recent activity" action={viewAll("/admin/activity-logs")}>
             {data.recentActivity.length === 0 ? (
               <EmptyState title="No activity yet" />
             ) : (
               <ul className="divide-y">
                 {data.recentActivity.map((a) => (
-                  <li key={a.id} className="py-2 text-sm">
+                  <li key={a.id} className="py-2.5 text-sm">
                     <span className="font-medium">{a.action}</span>
                     {describeActivity(a.action, a.details) && (
                       <span className="text-slate-600"> - {describeActivity(a.action, a.details)}</span>
@@ -313,10 +347,7 @@ export default async function AdminDashboardPage({
                 ))}
               </ul>
             )}
-            <Link href="/admin/activity-logs" className="mt-3 inline-block text-sm font-medium text-blue-700 hover:underline">
-              View all activity
-            </Link>
-          </Card>
+          </Panel>
         )}
       </div>
     </>

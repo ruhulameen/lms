@@ -54,6 +54,17 @@ Still open, later phases:
 
 - [ ] Email provider — the app now sends over SMTP, but no provider or sending domain is chosen yet; fill in `SMTP_*` and `EMAIL_FROM` in `.env`.
 
+## Admin dashboard redesign
+
+Built 2026-10-13 in the main session. Not committed.
+
+- One date range button replaces the row of buttons and the From / To form: Today, Yesterday, This week, Last week, This month (the default), Last month, This year, Last year, All time, and a custom range picked on a two-month calendar. Built on the shadcn calendar, not Ant Design, to stay on the project's component set.
+- Stat cards with icon, figure and change against the previous period; revenue, paid orders, average order value, refunds, new sign-ups, new enrolments, active enrolments, total users.
+- Charts drawn with Highcharts (loaded in the browser only): revenue, sign-ups, users by role; and enrolments per month on the course overview. Ranges over 92 days are charted per month. The hand-drawn bar chart is removed.
+- Checked in the browser at desktop width: presets, All time, This year, a custom range, the course overview chart.
+- [ ] Highcharts is free only for non-commercial use: buy a licence before the site goes live, or swap the two chart components in `src/components/admin/highcharts-charts.tsx` for a free library.
+- [ ] Check the dashboard and the picker at phone and tablet widths.
+
 ## Notifications — students
 
 Built 2026-10-13 in the main session. Not committed. Admin and instructor notifications come later; the `notification` table and `notify()` (`src/services/notification.ts`) are already general.
