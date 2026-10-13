@@ -25,7 +25,7 @@ export function LearnerQuizSection({ quizzes }: { quizzes: QuizResultRow[] }) {
           <ul className="divide-y">
             {quizzes.map((quiz) => (
               <li key={quiz.lessonId} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-sm sm:px-6">
-                <span className="min-w-0 flex-1">
+                <span className="min-w-0 flex-1 basis-full sm:basis-0">
                   <span className="block font-medium">{quiz.lessonTitle}</span>
                   <span className="block text-xs text-slate-500">{quiz.courseTitle}</span>
                 </span>
@@ -56,7 +56,7 @@ export function LearnerCertificatesSection({ certificates }: { certificates: Lea
         <ul className="divide-y border-t">
           {certificates.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-sm sm:px-6">
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 flex-1 basis-full sm:basis-0">
                 <span className="block font-medium">{c.courseTitle}</span>
                 <Link href={`/certificates/${c.code}`} className="font-mono text-xs text-blue-700 hover:underline">
                   {c.code}
@@ -87,7 +87,7 @@ export function LearnerReviewsSection({ reviews }: { reviews: LearnerReviewRow[]
         <ul className="divide-y border-t">
           {reviews.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-sm sm:px-6">
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 flex-1 basis-full sm:basis-0">
                 <span className="block font-medium">{r.courseTitle}</span>
                 {r.excerpt && <span className="block truncate text-slate-600">{r.excerpt}</span>}
               </span>

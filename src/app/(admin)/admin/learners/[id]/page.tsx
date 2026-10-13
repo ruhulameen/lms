@@ -102,7 +102,7 @@ export default async function LearnerPage({ params, searchParams }: { params: Pr
         ))}
       </nav>
 
-      <div className="grid gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <LearnerAccountSection
           user={learner}
           roles={roles}

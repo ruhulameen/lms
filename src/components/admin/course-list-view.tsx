@@ -77,7 +77,7 @@ export async function CourseListView({ base, searchParams }: { base: string; sea
       header: "Status",
       sortable: true,
       cell: (c) => (
-        <span className="grid gap-0.5">
+        <span className="inline-flex flex-col items-start gap-0.5">
           <ContentStatusBadge status={c.status} />
           {c.status === "SCHEDULED" && c.publishAt && <span className="text-xs text-slate-500">{formatDateTime(c.publishAt)}</span>}
         </span>

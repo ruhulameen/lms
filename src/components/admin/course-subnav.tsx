@@ -22,7 +22,7 @@ export async function CourseSubnav({ courseId, basePath, active }: CourseSubnavP
     ...((basePath.startsWith("/instructor/") || (user && can(user, "enrolment.view"))) ? [{ key: "learners", label: "Learners", href: `${basePath}/${courseId}/learners` } as const] : []),
   ];
   return (
-    <nav aria-label="Course sections" className="mb-6 flex gap-1 border-b">
+    <nav aria-label="Course sections" className="mb-6 flex gap-1 overflow-x-auto border-b whitespace-nowrap">
       {items.map((item) => (
         <Link
           key={item.key}

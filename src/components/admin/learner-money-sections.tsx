@@ -92,7 +92,7 @@ export function LearnerRefundsSection({ refunds }: { refunds: LearnerRefundRow[]
         <ul className="divide-y border-t">
           {refunds.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-sm sm:px-6">
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 flex-1 basis-full sm:basis-0">
                 <Link href={`/admin/orders/${r.orderId}`} className="font-mono text-xs font-medium text-blue-700 hover:underline">
                   {r.orderNumber}
                 </Link>
